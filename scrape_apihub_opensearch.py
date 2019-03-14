@@ -14,6 +14,11 @@ from tabulate import tabulate
 from lxml.etree import fromstring
 from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
                                                   InsecurePlatformWarning)
+import dateutil.parser
+import ast
+import shapely.wkt
+from shapely.geometry import Polygon
+import geojson
 
 import hysds.orchestrator
 from hysds.celery import app
@@ -57,7 +62,6 @@ QUERY_TEMPLATE = 'IW AND producttype:SLC AND platformname:Sentinel-1 AND ' + \
                  #'( footprint:"Intersects(POLYGON(({2})))")'
 
 # regexes
-FOOTPRINT_RE = re.compile(r'POLYGON\s*\(\((.*)\)\)')
 PLATFORM_RE = re.compile(r'S1(.+?)_')
 
 
@@ -110,15 +114,9 @@ def massage_result(res):
 
     res["source"] = "esa_scihub"
     # extract footprint and save as bbox and geojson polygon
-    match = FOOTPRINT_RE.search(res['footprint'])
-    if not match:
-        raise RuntimeError("Failed to extract footprint info: %s" % res['footprint'])
-    polygon = [map(eval, coord.split()) for coord in match.group(1).split(',')]
-    res['location'] = {
-        "type": "polygon",
-        "coordinates": [ polygon ],
-    }
-    res['bbox'] = [[i[1], i[0]] for i in polygon]
+    g = shapely.wkt.loads(res['footprint'])
+    res['location'] = geojson.Feature(geometry=g, properties={}).geometry
+    res['bbox'] = geojson.Feature(geometry=g.envelope, properties={}).geometry.coordinates[0]
 
     # set platform
     match = PLATFORM_RE.search(res['title'])
@@ -133,7 +131,7 @@ def massage_result(res):
     if res['platform'] == "Sentinel-1B":
         if res['trackNumber'] != (res['orbitNumber']-27)%175+1:
             raise RuntimeError("Failed to verify S1B relative orbit number and track number.")
-    
+
 
 def get_dataset_json(met, version):
     """Generated HySDS dataset JSON from met JSON."""
@@ -178,7 +176,7 @@ def create_acq_dataset(ds, met, manifest, root_ds_dir=".", browse=False):
     #manifest_file = os.path.join(ds_dir, "manifest.safe")
     #with open(manifest_file, 'w') as f:
     #    f.write(manifest)
-   
+
     # create browse?
     if browse:
         browse_jpg = os.path.join(ds_dir, "browse.jpg")
@@ -223,10 +221,10 @@ def get_namespaces(xml):
 def get_manifest(session, info):
     """Get manifest information."""
 
-    # disable extraction of manifest (takes too long); will be 
+    # disable extraction of manifest (takes too long); will be
     # extracted when needed during standard product pipeline
     if True: return None
-    else: 
+    else:
         #logger.info("info: {}".format(json.dumps(info, indent=2)))
         manifest_url = "{}/Nodes('{}')/Nodes('manifest.safe')/$value".format(info['met']['alternative'],
                                                                              info['met']['filename'])
@@ -279,7 +277,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try: massage_result(met) 
+            try: massage_result(met)
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
@@ -368,7 +366,7 @@ if __name__ == "__main__":
                         default="v1.1", required=False)
     parser.add_argument("--user", help="SciHub user", default=None, required=False)
     parser.add_argument("--password", help="SciHub password", default=None, required=False)
-    parser.add_argument("--email", help="email addresses to send email to", 
+    parser.add_argument("--email", help="email addresses to send email to",
                         nargs='+', required=False)
     parser.add_argument("--browse", help="create browse images", action='store_true')
     group = parser.add_mutually_exclusive_group()

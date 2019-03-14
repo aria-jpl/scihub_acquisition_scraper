@@ -13,6 +13,8 @@ from urlparse import urlparse
 from tabulate import tabulate
 from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
                                                   InsecurePlatformWarning)
+import shapely.wkt
+import geojson
 
 import hysds.orchestrator
 from hysds.celery import app
@@ -54,7 +56,6 @@ dtreg = re.compile(r'S1\w_.+?_(\d{4})(\d{2})(\d{2})T.*')
 QUERY_TEMPLATE = '( ingestionDate:[{0} TO {1}] ) AND ( platformname:Sentinel-1 AND producttype:SLC AND sensoroperationalmode:IW)'
 
 # regexes
-FOOTPRINT_RE = re.compile(r'POLYGON\s*\(\((.*)\)\)')
 PLATFORM_RE = re.compile(r'S1(.+?)_')
 
 
@@ -79,7 +80,7 @@ def massage_result(res):
                     res['sensingStart'] = i['value'].replace('Z', '')
                 elif i['name'] == 'Sensing stop':
                     res['sensingStop'] = i['value'].replace('Z', '')
-  
+
     # set links
     res['download_url'] = download_url.format(res['uuid'])
     res['icon'] = browse_url.format(res['uuid'])
@@ -89,15 +90,9 @@ def massage_result(res):
     res['archive_filename'] = "%s.zip" % res['identifier']
 
     # extract footprint and save as bbox and geojson polygon
-    match = FOOTPRINT_RE.search(res['footprint'])
-    if not match:
-        raise RuntimeError("Failed to extract footprint info: %s" % res['footprint'])
-    polygon = [map(eval, coord.split()) for coord in match.group(1).split(',')]
-    res['location'] = {
-        "type": "polygon",
-        "coordinates": [ polygon ],
-    }
-    res['bbox'] = [[i[1], i[0]] for i in polygon]
+    g = shapely.wkt.loads(res['footprint'])
+    res['location'] = geojson.Feature(geometry=g, properties={}).geometry
+    res['bbox'] = geojson.Feature(geometry=g.envelope, properties={}).geometry.coordinates[0]
 
     # set platform
     match = PLATFORM_RE.search(res['identifier'])
@@ -112,7 +107,7 @@ def massage_result(res):
     if res['platform'] == "Sentinel-1B":
         if res['trackNumber'] != (res['orbitNumber']-27)%175+1:
             raise RuntimeError("Failed to verify S1B relative orbit number and track number.")
-    
+
 
 def get_dataset_json(met, version):
     """Generated HySDS dataset JSON from met JSON."""
@@ -186,8 +181,8 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     query = QUERY_TEMPLATE.format(starttime, endtime)
 
     # get result count
-    count_params = { 
-        "filter": query, 
+    count_params = {
+        "filter": query,
     }
     logger.info("count query: %s" % json.dumps(count_params, indent=2))
     response = session.get("%s/count?" % url, params=count_params, verify=False)
@@ -204,8 +199,8 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     loop = True
     ids_by_track = {}
     while loop:
-        query_params = { 
-            "filter": query, 
+        query_params = {
+            "filter": query,
             "limit": 100,
             "offset": offset,
             "sortedby": "ingestiondate",
@@ -226,7 +221,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try: massage_result(met) 
+            try: massage_result(met)
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
@@ -313,7 +308,7 @@ if __name__ == "__main__":
                         default="v1.1", required=False)
     parser.add_argument("--user", help="SciHub user", default=None, required=False)
     parser.add_argument("--password", help="SciHub password", default=None, required=False)
-    parser.add_argument("--email", help="email addresses to send email to", 
+    parser.add_argument("--email", help="email addresses to send email to",
                         nargs='+', required=False)
     parser.add_argument("--browse", help="create browse images", action='store_true')
     group = parser.add_mutually_exclusive_group()
