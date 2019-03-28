@@ -17,6 +17,9 @@ from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
 import shapely.wkt
 import geojson
 
+import shapely.wkt
+import geojson
+
 import hysds.orchestrator
 from hysds.celery import app
 from hysds.dataset_ingest import ingest
@@ -60,7 +63,6 @@ QUERY_TEMPLATE = "IngestionDate ge datetime'{0}' and IngestionDate lt datetime'{
 #QUERY_TEMPLATE = "substringof('IW_SLC',Name) and substringof('20170409T',Name)"
 
 # regexes
-FOOTPRINT_RE = re.compile(r'POLYGON\s*\(\((.*)\)\)')
 PLATFORM_RE = re.compile(r'S1(.+?)_')
 
 

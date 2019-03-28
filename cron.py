@@ -4,13 +4,9 @@ Cron script to submit scihub scraper jobs.
 """
 
 from __future__ import print_function
-
-import os, sys, json, requests, argparse
 from datetime import datetime, timedelta
 import argparse
-
 from hysds_commons.job_utils import submit_mozart_job
-from hysds.celery import app
 
 
 if __name__ == "__main__":
@@ -23,7 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("ds_es_url", help="ElasticSearch URL for acquisition dataset, e.g. " +
                          "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
     parser.add_argument("starttime", help="Start time in ISO8601 format", nargs='?',
-                        default="%sZ" % (datetime.utcnow()-timedelta(days=1)).isoformat())
+                        default="%sZ" % (datetime.utcnow()-timedelta(days=2)).isoformat())
     parser.add_argument("endtime", help="End time in ISO8601 format", nargs='?',
                         default="%sZ" % datetime.utcnow().isoformat())
     parser.add_argument("--tag", help="PGE docker image tag (release, version, " +
@@ -35,7 +31,7 @@ if __name__ == "__main__":
     ds_es_url = args.ds_es_url
     starttime = args.starttime
     endtime = args.endtime
-    job_spec = "job-scrape_apihub-%s:%s" % (qtype, args.tag)
+    job_spec = "job-acquisition_ingest-scihub:{}".format(args.tag)
 
     rtime = datetime.utcnow()
     job_name = "%s-%s-%s-%s" % (job_spec, starttime.replace("-", "").replace(":", ""),
@@ -45,7 +41,7 @@ if __name__ == "__main__":
 
     #Setup input arguments here
     rule = {
-        "rule_name": "scrape_apihub-%s" % qtype,
+        "rule_name": "acquistion_ingest-scihub",
         #"queue": "factotum-job_worker-apihub_%s_throttled" % qtype, # job submission queue
         "queue": "factotum-job_worker-apihub_scraper_throttled",
         "priority": 0,
@@ -73,9 +69,9 @@ if __name__ == "__main__":
             "value": endtime
         },
         { 
-            "name": "create_flag",
+            "name": "ingest_flag",
             "from": "value",
-            "value": "--create"
+            "value": "--ingest"
         }
     ]
 
