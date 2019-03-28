@@ -35,10 +35,18 @@ def check_prod_avail(session, link):
     :return:
     """
 
-    product_url = "{}$value".format(link)
-    response = session.get(product_url, verify=False, timeout=180)
-    return response.status_code
+    response = session.get(link, verify=False, timeout=180)
+    response.raise_for_status()
+    is_online_str = ""
 
+    if response.status_code == 200:
+        xml_str = response.content
+        ns = get_scihub_namespaces(xml_str)
+        xml = fromstring(xml_str)
+        is_online_str = xml.xpath('./m:properties/d:Online', namespaces=ns)[0].text
+        logger.info("Request for product entry {} successful, product found to be Online:{}".format(link, is_online_str))
+
+    return response.status_code, is_online_str
 
 def get_scihub_manifest(session, info):
     """Get manifest information."""
@@ -145,15 +153,27 @@ def extract_scihub_ipf(met):
         'ds': ds
     }
 
-    prod_avail = check_prod_avail(session, info['met']['alternative'])
-    if prod_avail == 200:
-        manifest = get_scihub_manifest(session, info)
-    elif prod_avail == 202:
-        logger.info("Got 202 from SciHub. Product moved to long term archive.")
-        raise Exception("Got 202. Product moved to long term archive.")
+    status, prod_avail = check_prod_avail(session, info['met']['alternative'])
+
+    if status == 200:
+        if prod_avail == "false":
+            # Product in Long term Archive. Hit on the download link to bring it online soon.
+            product_url = "{}$value".format(info['met']['alternative'])
+            logger.info("Product is offline. Hitting {} to make it online for later.".format(product_url))
+            resp_lta = requests.get(product_url, verify=False, timeout=180)
+            resp_lta.raise_for_status()
+            logger.info("Got product offline from SciHub. Product moved to long term archive.")
+            raise Exception("Got 202. Product moved to long term archive.")
+
+        elif prod_avail == "true":
+            manifest = get_scihub_manifest(session, info)
+
+        else:
+            logger.info("Unable to determine if product is online from {}, check logs".format(info['met']['alternative']))
+            raise Exception("Unable to determine if product is online from {}, check logs".format(info['met']['alternative']))
     else:
-        logger.info("Got code {} from SciHub".format(prod_avail))
-        raise Exception("Got code {}".format(prod_avail))
+        logger.info("Got code {} from SciHub".format(status))
+        raise Exception("Got code {}".format(status))
 
     ipf = get_scihub_ipf(manifest)
     return ipf
