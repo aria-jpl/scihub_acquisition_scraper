@@ -59,8 +59,8 @@ def get_scihub_manifest(session, info):
                                                                              info['met']['filename'])
     manifest_url2 = manifest_url.replace('/apihub/', '/dhus/')
     for url in (manifest_url2, manifest_url):
+        logger.info("url: %s" % url)
         response = session.get(url, verify=False, timeout=180)
-        logger.info("url: %s" % response.url)
         if response.status_code == 200:
             break
     response.raise_for_status()
