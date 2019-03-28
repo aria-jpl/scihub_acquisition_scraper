@@ -18,6 +18,13 @@
     {
         "name": "end_time",
         "from": "dataset_jpath:_source.endtime"
+    },
+    {
+        "name": "ipf_scraper_release",
+        "from": "submitter",
+        "type": "jobspec_version",
+        "version_regex": "job-ipf_scraper",
+        "placeholder": "ipf scraper version"
     }
   ]
 }
