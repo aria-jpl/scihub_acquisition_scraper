@@ -16,6 +16,9 @@ from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
 import shapely.wkt
 import geojson
 
+import shapely.wkt
+import geojson
+
 import hysds.orchestrator
 from hysds.celery import app
 from hysds.dataset_ingest import ingest

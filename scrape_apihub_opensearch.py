@@ -7,11 +7,8 @@ acquisition datasets.
 import os, sys, time, re, requests, json, logging, traceback, argparse
 import shutil, hashlib, getpass, tempfile, backoff
 from subprocess import check_call
-#import requests_cache
 from datetime import datetime, timedelta
-from urlparse import urlparse
 from tabulate import tabulate
-from lxml.etree import fromstring
 from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
                                                   InsecurePlatformWarning)
 import dateutil.parser
@@ -25,7 +22,7 @@ from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
 
-#from notify_by_email import send_email
+# from notify_by_email import send_email
 
 
 # disable warnings for SSL verification
@@ -34,8 +31,8 @@ requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 
 
 # monkey patch and clean cache
-#expire_after = timedelta(hours=1)
-#requests_cache.install_cache('check_apihub', expire_after=expire_after)
+# expire_after = timedelta(hours=1)
+# requests_cache.install_cache('check_apihub', expire_after=expire_after)
 
 
 # set logger
@@ -69,6 +66,37 @@ def get_timestamp_for_filename(time):
     time = time.replace("-", "")
     time = time.replace(":", "")
     return time
+
+
+def get_accurate_times(filename_str, starttime_str, endtime_str):
+    '''
+    Use the seconds from the start/end strings to append to the input filename timestamp to keep accuracy
+
+    filename_str -- input S1_IW_SLC filename string
+    starttime -- starttime string from SciHub metadata
+    endtime -- endtime string from SciHub metadata
+    '''
+    match_pattern = "(?P<spacecraft>S1\w)_IW_SLC__(?P<misc>.*?)_(?P<s_year>\d{4})(?P<s_month>\d{2})(?P<s_day>\d{2})T(?P<s_hour>\d{2})(?P<s_minute>\d{2})(?P<s_seconds>\d{2})_(?P<e_year>\d{4})(?P<e_month>\d{2})(?P<e_day>\d{2})T(?P<e_hour>\d{2})(?P<e_minute>\d{2})(?P<e_seconds>\d{2})(?P<misc2>.*?)$"
+    m = re.match(match_pattern, filename_str)
+    metadata_st = dateutil.parser.parse(starttime_str).strftime('%Y-%m-%dT%H:%M:%S')
+    metadata_et = dateutil.parser.parse(endtime_str).strftime('%Y-%m-%dT%H:%M:%S')
+    file_st = "{}-{}-{}T{}:{}:{}".format(m.group("s_year"), m.group("s_month"), m.group("s_day"), m.group("s_hour"),
+                                           m.group("s_minute"), m.group("s_seconds"))
+    file_et = "{}-{}-{}T{}:{}:{}".format(m.group("e_year"), m.group("e_month"), m.group("e_day"), m.group("e_hour"),
+                                         m.group("e_minute"), m.group("e_seconds"))
+
+    if metadata_st != file_st:
+        logger.info("Start Timestamps Mismatch detected \n For {} \n Start time in File Name: {} \n Start time in meta"
+                    "data: {} \n".format(filename_str, file_st, metadata_st))
+    if metadata_et != file_et:
+        logger.info("End Timestamps Mismatch detected \n For {} \n End time in File Name: {} \n End time in meta"
+                    "data: {} \n".format(filename_str, file_et, metadata_et))
+
+    start_microseconds = dateutil.parser.parse(starttime_str).strftime('.%f').rstrip('0').ljust(4, '0') + 'Z' # milliseconds + postfix from metadata
+    end_microseconds = dateutil.parser.parse(endtime_str).strftime('.%f').rstrip('0').ljust(4, '0') + 'Z' # milliseconds + postfix from metadata
+    starttime = "{}-{}-{}T{}:{}:{}{}".format(m.group("s_year"), m.group("s_month"), m.group("s_day"), m.group("s_hour"), m.group("s_minute"), m.group("s_seconds"), start_microseconds)
+    endtime = "{}-{}-{}T{}:{}:{}{}".format(m.group("e_year"), m.group("e_month"), m.group("e_day"), m.group("e_hour"), m.group("e_minute"), m.group("e_seconds"), end_microseconds)
+    return starttime, endtime
 
 def massage_result(res):
     """Massage result JSON into HySDS met json."""
@@ -109,10 +137,15 @@ def massage_result(res):
     res['data_product_name'] = "acquisition-%s" % res['title']
     res['archive_filename'] = "%s.zip" % res['title']
 
-    if res['status'].upper() == "ARCHIVED":
-        res['status'] = "ACQUIRED"
+    correct_start_time, correct_end_time = get_accurate_times(filename_str=res["title"], starttime_str=res["sensingStart"],
+                                                              endtime_str=res["sensingStop"])
+    res["sensingStart"] = correct_start_time
+    res["sensingStop"] = correct_end_time
 
     res["source"] = "esa_scihub"
+    track_number = res["trackNumber"]
+    res["track_number"] = track_number
+    del res['trackNumber']
     # extract footprint and save as bbox and geojson polygon
     g = shapely.wkt.loads(res['footprint'])
     res['location'] = geojson.Feature(geometry=g, properties={}).geometry
@@ -125,13 +158,14 @@ def massage_result(res):
     res['platform'] = "Sentinel-1%s" % match.group(1)
 
     # verify track
-    if res['platform'] == "Sentinel-1A":
-        if res['trackNumber'] != (res['orbitNumber']-73)%175+1:
-            raise RuntimeError("Failed to verify S1A relative orbit number and track number.")
-    if res['platform'] == "Sentinel-1B":
-        if res['trackNumber'] != (res['orbitNumber']-27)%175+1:
-            raise RuntimeError("Failed to verify S1B relative orbit number and track number.")
 
+    if res['platform'] == "Sentinel-1A":
+       if res['track_number'] != (res['orbitNumber']-73)%175+1:
+           logger.info("WARNING: Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
+    if res['platform'] == "Sentinel-1B":
+       if res['track_number'] != (res['orbitNumber']-27)%175+1:
+           logger.info("WARNING: Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
+    
 
 def get_dataset_json(met, version):
     """Generated HySDS dataset JSON from met JSON."""
@@ -145,23 +179,18 @@ def get_dataset_json(met, version):
     }
 
 
-def create_acq_dataset(ds, met, manifest, root_ds_dir=".", browse=False):
+def create_acq_dataset(ds, met, root_ds_dir=".", browse=False):
     """Create acquisition dataset. Return tuple of (dataset ID, dataset dir)."""
 
     # create dataset dir
-    id = "acquisition-{}_{}_{}_{}-esa_scihub".format(met["platform"],get_timestamp_for_filename(met["sensingStart"]), met["trackNumber"], met["sensoroperationalmode"])
+    id = "acquisition-{}_{}_{}_{}-esa_scihub".format(met["platform"],get_timestamp_for_filename(met["sensingStart"]), met["track_number"], met["sensoroperationalmode"])
     root_ds_dir = os.path.abspath(root_ds_dir)
     ds_dir = os.path.join(root_ds_dir, id)
     if not os.path.isdir(ds_dir): os.makedirs(ds_dir, 0755)
 
     # append source to met
     met['query_api'] = "opensearch"
-
-    # append processing version (ipf)
-    # ns = get_namespaces(manifest)
-    # x = fromstring(manifest)
-    # ipf = x.xpath('.//xmlData/safe:processing/safe:facility/safe:software/@version', namespaces=ns)[0]
-    # met['processing_version'] = ipf
+    # set IPF version to None
     met['processing_version'] = None
 
     # dump dataset and met JSON
@@ -171,11 +200,6 @@ def create_acq_dataset(ds, met, manifest, root_ds_dir=".", browse=False):
         json.dump(ds, f, indent=2, sort_keys=True)
     with open(met_file, 'w') as f:
         json.dump(met, f, indent=2, sort_keys=True)
-
-    # dump manifest
-    #manifest_file = os.path.join(ds_dir, "manifest.safe")
-    #with open(manifest_file, 'w') as f:
-    #    f.write(manifest)
 
     # create browse?
     if browse:
@@ -190,13 +214,18 @@ def create_acq_dataset(ds, met, manifest, root_ds_dir=".", browse=False):
     return id, ds_dir
 
 
-def ingest_acq_dataset(ds, met, manifest, ds_cfg, browse=False):
+def ingest_acq_dataset(ds, met, ds_cfg, browse=False):
     """Create acquisition dataset and ingest."""
 
     tmp_dir = tempfile.mkdtemp()
-    id, ds_dir = create_acq_dataset(ds, met, manifest, tmp_dir, browse)
-    ingest(id, ds_cfg, app.conf.GRQ_UPDATE_URL, app.conf.DATASET_PROCESSED_QUEUE, ds_dir, None)
-    shutil.rmtree(tmp_dir)
+    id, ds_dir = create_acq_dataset(ds, met, tmp_dir, browse)
+
+    try:
+        ingest(id, ds_cfg, app.conf.GRQ_UPDATE_URL, app.conf.DATASET_PROCESSED_QUEUE, ds_dir, None)
+        shutil.rmtree(tmp_dir)
+        return True
+    except Exception:
+        return False
 
 
 @backoff.on_exception(backoff.expo, requests.exceptions.RequestException,
@@ -205,39 +234,78 @@ def rhead(url):
     return requests.head(url)
 
 
-def get_namespaces(xml):
-    """Take an xml string and return a dict of namespace prefixes to
-       namespaces mapping."""
+def get_existing_acqs(start_time, end_time, location=False):
+    """
+    This function would query for all the acquisitions that
+    temporally and spatially overlap with the AOI
+    :param location:
+    :param start_time:
+    :param end_time:
+    :return:
+    """
+    index = "grq_v2.0_acquisition-s1-iw_slc"
+    type = "acquisition-S1-IW_SLC"
 
-    nss = {}
-    matches = re.findall(r'\s+xmlns:?(\w*?)\s*=\s*[\'"](.*?)[\'"]', xml)
-    for match in matches:
-        prefix = match[0]; ns = match[1]
-        if prefix == '': prefix = '_default'
-        nss[prefix] = ns
-    return nss
+    query = {
+        "query": {
+            "filtered": {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "range": {
+                                    "metadata.sensingStart": {
+                                        "to": end_time,
+                                        "from": start_time
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    if location:
+        geo_shape = {
+                    "geo_shape": {
+                        "location": {
+                            "shape": location
+                        }
+                    }
+                }
+        query["query"]["filtered"]["filter"] = geo_shape
+
+    acq_ids = []
+    rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
+    url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
+    r = requests.post(url, data=json.dumps(query))
+    r.raise_for_status()
+    scan_result = r.json()
+    count = scan_result['hits']['total']
+    if count == 0:
+        return []
+    if '_scroll_id' not in scan_result:
+        print("_scroll_id not found in scan_result. Returning empty array for the query :\n%s" % query)
+        return []
+    scroll_id = scan_result['_scroll_id']
+    hits = []
+    while True:
+        r = requests.post('%s/_search/scroll?scroll=60m' % rest_url, data=scroll_id)
+        res = r.json()
+        scroll_id = res['_scroll_id']
+        if len(res['hits']['hits']) == 0:
+            break
+        hits.extend(res['hits']['hits'])
+
+    for item in hits:
+        acq_ids.append(item.get("_id"))
+
+    return acq_ids
 
 
-def get_manifest(session, info):
-    """Get manifest information."""
-
-    # disable extraction of manifest (takes too long); will be
-    # extracted when needed during standard product pipeline
-    if True: return None
-    else:
-        #logger.info("info: {}".format(json.dumps(info, indent=2)))
-        manifest_url = "{}/Nodes('{}')/Nodes('manifest.safe')/$value".format(info['met']['alternative'],
-                                                                             info['met']['filename'])
-        manifest_url2 = manifest_url.replace('/apihub/', '/dhus/')
-        for url in (manifest_url2, manifest_url):
-            response = session.get(url, verify=False)
-            logger.info("url: %s" % response.url)
-            if response.status_code == 200: break
-        response.raise_for_status()
-        return response.content
-
-
-def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=None,
+def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=None, password=None,
            version="v2.0", ingest_missing=False, create_only=False, browse=False):
     """Query ApiHub (OpenSearch) for S1 SLC scenes and generate acquisition datasets."""
 
@@ -247,18 +315,26 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
 
     # set query
     query = QUERY_TEMPLATE.format(starttime, endtime)
-
+    if polygon:
+        query += ' ( footprint:"Intersects({})")'.format(convert_to_wkt(polygon))
+        existing_acqs = get_existing_acqs(start_time=starttime, end_time=endtime, location=json.loads(polygon))
+    else:
+        existing_acqs = get_existing_acqs(start_time=starttime, end_time=endtime)
+    
     # query
     prods_all = {}
     offset = 0
     loop = True
     total_results_expected = None
     ids_by_track = {}
+    prods_missing = []
+    prods_found = []
     while loop:
-        query_params = { "q": query, "rows": 100, "format": "json", "start": offset }
+        query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
         logger.info("query: %s" % json.dumps(query_params, indent=2))
-        #query_url = url + "&".join(["%s=%s" % (i, query_params[i]) for i in query_params]).replace("(", "%28").replace(")", "%29").replace(" ", "%20")
-        #logger.info("query_url: %s" % query_url)
+        # query_url = url + "&".join(["%s=%s" % (i, query_params[i]) for i in query_params])
+        # .replace("(", "%28").replace(")", "%29").replace(" ", "%20")
+        # logger.info("query_url: %s" % query_url)
         response = session.get(url, params=query_params, verify=False)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
@@ -282,30 +358,24 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
                 raise
-            #logger.info(json.dumps(met, indent=2, sort_keys=True))
+            # logger.info(json.dumps(met, indent=2, sort_keys=True))
             ds = get_dataset_json(met, version)
-            #logger.info(json.dumps(ds, indent=2, sort_keys=True))
+            # logger.info(json.dumps(ds, indent=2, sort_keys=True))
             prods_all[met['id']] = {
                 'met': met,
                 'ds': ds,
             }
-            ids_by_track.setdefault(met['trackNumber'], []).append(met['id'])
+
+            #check if exists
+            if met["id"] not in existing_acqs:
+                prods_missing.append(met["id"])
+            else:
+                prods_found.append(met["id"])
+
+            ids_by_track.setdefault(met['track_number'], []).append(met['id'])
 
         # don't clobber the connection
         time.sleep(3)
-
-    # check if exists
-    prods_missing = []
-    prods_found = []
-    for acq_id, info in prods_all.iteritems():
-        r = rhead('%s/%s' % (ds_es_url, acq_id))
-        if r.status_code == 200:
-            prods_found.append(acq_id)
-        elif r.status_code == 404:
-            #logger.info("missing %s" % acq_id)
-            prods_missing.append(acq_id)
-        else:
-            r.raise_for_status()
 
     # print number of products missing
     msg = "Global data availability for %s through %s:\n" % (starttime, endtime)
@@ -334,36 +404,68 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     if ingest_missing and not create_only:
         for acq_id in prods_missing:
             info = prods_all[acq_id]
-            manifest = get_manifest(session, info)
-            ingest_acq_dataset(info['ds'], info['met'], manifest, ds_cfg)
-            logger.info("Created and ingested %s\n" % acq_id)
+            if ingest_acq_dataset(info['ds'], info['met'], ds_cfg):
+                logger.info("Created and ingested %s\n" % acq_id)
+            else:
+                logger.info("Failed to create and ingest %s\n" % acq_id)
 
     # just create missing datasets
     if not ingest_missing and create_only:
         for acq_id in prods_missing:
             info = prods_all[acq_id]
-            manifest = get_manifest(session, info)
-            id, ds_dir = create_acq_dataset(info['ds'], info['met'], manifest, browse=browse)
+
+            id, ds_dir = create_acq_dataset(info['ds'], info['met'], browse=browse)
             logger.info("Created %s\n" % acq_id)
 
     # email
-    #if email_to is not None:
-    #    subject = "[check_apihub] %s S1 SLC count" % aoi['data_product_name']
-    #    send_email(getpass.getuser(), email_to, [], subject, msg)
+    # if email_to is not None:
+    #     subject = "[check_apihub] %s S1 SLC count" % aoi['data_product_name']
+    #     send_email(getpass.getuser(), email_to, [], subject, msg)
+
+
+def convert_geojson(input_geojson):
+    '''Attempts to convert the input geojson into a polygon object. Returns the object.'''
+    if type(input_geojson) is str:
+        try:
+            input_geojson = json.loads(input_geojson)
+        except:
+            try:
+                input_geojson = ast.literal_eval(input_geojson)
+            except:
+                raise Exception('unable to parse input geojson string: {0}'.format(input_geojson))
+    #attempt to parse the coordinates to ensure a valid geojson
+    #print('input_geojson: {}'.format(input_geojson))
+    depth = lambda L: isinstance(L, list) and max(map(depth, L))+1
+    d = depth(input_geojson)
+    try:
+        # if it's a full geojson
+        if d is False and 'coordinates' in input_geojson.keys():
+            polygon = Polygon(input_geojson['coordinates'][0])
+            return polygon
+        else: # it's a list of coordinates
+            polygon = Polygon(input_geojson)
+            return polygon
+    except:
+        raise Exception('unable to parse geojson: {0}'.format(input_geojson))
+
+def convert_to_wkt(input_obj):
+    '''converts a polygon object from shapely into a wkt string for querying'''
+    return shapely.wkt.dumps(convert_geojson(input_obj))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ds_es_url", help="ElasticSearch URL for acquisition dataset, e.g. " +
-                         "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
+                         "http://aria-products.jpl.nasa.gov:9200/grq_v2.0_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
     parser.add_argument("datasets_cfg", help="HySDS datasets.json file, e.g. " +
                          "/home/ops/verdi/etc/datasets.json")
     parser.add_argument("starttime", help="Start time in ISO8601 format", nargs='?',
                         default="%sZ" % (datetime.utcnow()-timedelta(days=1)).isoformat())
     parser.add_argument("endtime", help="End time in ISO8601 format", nargs='?',
                         default="%sZ" % datetime.utcnow().isoformat())
+    parser.add_argument("--polygon", help="Geojson polygon constraint", default=False, required=False)
     parser.add_argument("--dataset_version", help="dataset version",
-                        default="v1.1", required=False)
+                        default="v2.0", required=False)
     parser.add_argument("--user", help="SciHub user", default=None, required=False)
     parser.add_argument("--password", help="SciHub password", default=None, required=False)
     parser.add_argument("--email", help="email addresses to send email to",
@@ -377,7 +479,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         scrape(args.ds_es_url, args.datasets_cfg, args.starttime, args.endtime,
-               args.email, args.user, args.password, args.dataset_version,
+               args.email, args.polygon, args.user, args.password, args.dataset_version,
                args.ingest, args.create_only, args.browse)
     except Exception as e:
         with open('_alt_error.txt', 'a') as f:
