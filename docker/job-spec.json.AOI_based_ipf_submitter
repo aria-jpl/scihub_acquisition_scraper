@@ -25,6 +25,10 @@
     {
       "name": "end_time",
       "destination": "context"
+    },
+    {
+      "name": "ipf_scraper_release",
+      "destination": "context"
     }
   ]
 }
