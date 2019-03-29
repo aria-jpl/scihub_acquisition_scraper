@@ -59,7 +59,7 @@ def get_scihub_manifest(session, info):
                                                                              info['met']['filename'])
     manifest_url2 = manifest_url.replace('/apihub/', '/dhus/')
     for url in (manifest_url2, manifest_url):
-        logger.info("url: %s" % url)
+        logger.info("querying scihub url: %s" % url)
         response = session.get(url, verify=False, timeout=180)
         if response.status_code == 200:
             break
@@ -134,6 +134,7 @@ def extract_asf_ipf(id):
 
 
 def update_ipf(id, ipf_version):
+    logger.info("Updating IPF Version of {}. IPF Version: {}".format(id, ipf_version))
     ES.update(index=_index, doc_type=_type, id=id,
               body={"doc": {"metadata": {"processing_version": ipf_version}}})
 
