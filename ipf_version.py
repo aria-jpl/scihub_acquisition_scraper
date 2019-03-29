@@ -126,6 +126,7 @@ def extract_asf_ipf(id):
 
 
 def update_ipf(id, ipf_version):
+    logger.info("Updating IPF Version of {}. IPF Version: {}".format(id, ipf_version))
     ES.update(index=_index, doc_type=_type, id=id,
               body={"doc": {"metadata": {"processing_version": ipf_version}}})
 
