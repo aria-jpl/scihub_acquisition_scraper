@@ -70,7 +70,7 @@ if __name__ == "__main__":
                                                      "scihub instead of asf endpoint",
                         default="master", required=False)
     args = parser.parse_args()
-
+    scihub_days_bef = args.scihub_days_bef_thresh
     tag = args.tag
     global_extent = {
               "coordinates": [
@@ -82,10 +82,3 @@ if __name__ == "__main__":
     start_time = "{}Z".format((datetime.utcnow()-timedelta(days=2)).isoformat())
     end_time = "{}Z".format(datetime.utcnow().isoformat())
     submit_global_ipf(global_extent, start_time, end_time, scihub_days_bef, tag)
-
-
-
-
-
-
-
