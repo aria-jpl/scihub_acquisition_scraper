@@ -70,7 +70,7 @@ if __name__ == "__main__":
                                                      "scihub instead of asf endpoint",
                         default="master", required=False)
     args = parser.parse_args()
-    scihub_days_bef = args.scihub_days_bef_thresh
+    scihub_days_bef = float(args.scihub_days_bef_thresh)
     tag = args.tag
     global_extent = {
               "coordinates": [
