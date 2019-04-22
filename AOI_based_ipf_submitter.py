@@ -94,7 +94,6 @@ def get_non_ipf_acquisitions(location, start_time, end_time):
     return acq_list
 
 
-
 def submit_ipf_scraper(acq, tag, endpoint):
     params = [
         {

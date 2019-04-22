@@ -7,14 +7,12 @@ acquisition datasets.
 import os, sys, time, re, requests, json, logging, traceback, argparse
 import shutil, hashlib, getpass, tempfile, backoff
 from subprocess import check_call
-#import requests_cache
+# import requests_cache
 from datetime import datetime, timedelta
 from urlparse import urlparse
 from tabulate import tabulate
 from requests.packages.urllib3.exceptions import (InsecureRequestWarning,
                                                   InsecurePlatformWarning)
-import shapely.wkt
-import geojson
 
 import shapely.wkt
 import geojson
@@ -24,32 +22,32 @@ from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
 
-#from notify_by_email import send_email
+# from notify_by_email import send_email
 
 
 # disable warnings for SSL verification
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 
-
 # monkey patch and clean cache
-#expire_after = timedelta(hours=1)
-#requests_cache.install_cache('check_apihub', expire_after=expire_after)
+# expire_after = timedelta(hours=1)
+# requests_cache.install_cache('check_apihub', expire_after=expire_after)
 
 
 # set logger
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
 logging.basicConfig(format=log_format, level=logging.INFO)
 
+
 class LogFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, 'id'): record.id = '--'
         return True
 
+
 logger = logging.getLogger('scrape_apihub_stub')
 logger.setLevel(logging.INFO)
 logger.addFilter(LogFilter())
-
 
 # global constants
 url = "https://scihub.copernicus.eu/dhus/api/stub/products"
@@ -76,9 +74,12 @@ def massage_result(res):
                 elif i['name'] == 'JTS footprint':
                     res['footprint'] = i['value']
                 elif i['name'] == 'Pass direction':
-                    if i['value'] == "DESCENDING": res['direction'] = "dsc"
-                    elif i['value'] == "ASCENDING": res['direction'] = "asc"
-                    else: raise RuntimeError("Failed to recognize orbit direction: %s" % i['value'])
+                    if i['value'] == "DESCENDING":
+                        res['direction'] = "dsc"
+                    elif i['value'] == "ASCENDING":
+                        res['direction'] = "asc"
+                    else:
+                        raise RuntimeError("Failed to recognize orbit direction: %s" % i['value'])
                 elif i['name'] == 'Sensing start':
                     res['sensingStart'] = i['value'].replace('Z', '')
                 elif i['name'] == 'Sensing stop':
@@ -105,10 +106,10 @@ def massage_result(res):
 
     # verify track
     if res['platform'] == "Sentinel-1A":
-        if res['trackNumber'] != (res['orbitNumber']-73)%175+1:
+        if res['trackNumber'] != (res['orbitNumber'] - 73) % 175 + 1:
             raise RuntimeError("Failed to verify S1A relative orbit number and track number.")
     if res['platform'] == "Sentinel-1B":
-        if res['trackNumber'] != (res['orbitNumber']-27)%175+1:
+        if res['trackNumber'] != (res['orbitNumber'] - 27) % 175 + 1:
             raise RuntimeError("Failed to verify S1B relative orbit number and track number.")
 
 
@@ -191,7 +192,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     response = session.get("%s/count?" % url, params=count_params, verify=False)
     logger.info("count_url: %s" % response.url)
     if response.status_code != 200:
-        logger.error("Error: %s\n%s" % (response.status_code,response.text))
+        logger.error("Error: %s\n%s" % (response.status_code, response.text))
     response.raise_for_status()
     total_results_expected = response.json()
     logger.info("Total results expected: %s" % total_results_expected)
@@ -213,7 +214,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         response = session.get("%s?" % url, params=query_params, verify=False)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
-            logger.error("Error: %s\n%s" % (response.status_code,response.text))
+            logger.error("Error: %s\n%s" % (response.status_code, response.text))
         response.raise_for_status()
         entries = response.json()
         if len(entries) == 0: break
@@ -224,14 +225,15 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try: massage_result(met)
+            try:
+                massage_result(met)
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
                 raise
-            #logger.info(json.dumps(met, indent=2, sort_keys=True))
+            # logger.info(json.dumps(met, indent=2, sort_keys=True))
             ds = get_dataset_json(met, version)
-            #logger.info(json.dumps(ds, indent=2, sort_keys=True))
+            # logger.info(json.dumps(ds, indent=2, sort_keys=True))
             prods_all[met['data_product_name']] = {
                 'met': met,
                 'ds': ds,
@@ -249,7 +251,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         if r.status_code == 200:
             prods_found.append(acq_id)
         elif r.status_code == 404:
-            #logger.info("missing %s" % acq_id)
+            # logger.info("missing %s" % acq_id)
             prods_missing.append(acq_id)
         else:
             r.raise_for_status()
@@ -258,7 +260,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     msg = "Global data availability for %s through %s:\n" % (starttime, endtime)
     table_stats = [["total on apihub", len(prods_all)],
                    ["missing products", len(prods_missing)],
-                  ]
+                   ]
     msg += tabulate(table_stats, tablefmt="grid")
 
     # print counts by track
@@ -269,8 +271,8 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     msg += "\n\nMissing products:\n"
     msg += tabulate([("missing", i) for i in sorted(prods_missing)], tablefmt="grid")
     msg += "\nMissing %d in %s out of %d in ApiHub (stub)\n\n" % (len(prods_missing),
-                                                           ds_es_url,
-                                                           len(prods_all))
+                                                                  ds_es_url,
+                                                                  len(prods_all))
     logger.info(msg)
 
     # error check options
@@ -292,7 +294,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
             logger.info("Created %s\n" % acq_id)
 
     # email
-    #if email_to is not None:
+    # if email_to is not None:
     #    subject = "[check_apihub] %s S1 SLC count" % aoi['data_product_name']
     #    send_email(getpass.getuser(), email_to, [], subject, msg)
 
@@ -300,11 +302,11 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ds_es_url", help="ElasticSearch URL for acquisition dataset, e.g. " +
-                         "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
+                                          "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
     parser.add_argument("datasets_cfg", help="HySDS datasets.json file, e.g. " +
-                         "/home/ops/verdi/etc/datasets.json")
+                                             "/home/ops/verdi/etc/datasets.json")
     parser.add_argument("starttime", help="Start time in ISO8601 format", nargs='?',
-                        default="%sZ" % (datetime.utcnow()-timedelta(days=1)).isoformat())
+                        default="%sZ" % (datetime.utcnow() - timedelta(days=1)).isoformat())
     parser.add_argument("endtime", help="End time in ISO8601 format", nargs='?',
                         default="%sZ" % datetime.utcnow().isoformat())
     parser.add_argument("--dataset_version", help="dataset version",

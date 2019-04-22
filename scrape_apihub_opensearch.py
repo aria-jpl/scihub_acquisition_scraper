@@ -29,7 +29,6 @@ from osaka.main import get
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 
-
 # monkey patch and clean cache
 # expire_after = timedelta(hours=1)
 # requests_cache.install_cache('check_apihub', expire_after=expire_after)
@@ -39,15 +38,16 @@ requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
 logging.basicConfig(format=log_format, level=logging.INFO)
 
+
 class LogFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, 'id'): record.id = '--'
         return True
 
+
 logger = logging.getLogger('scrape_apihub_opensearch')
 logger.setLevel(logging.INFO)
 logger.addFilter(LogFilter())
-
 
 # global constants
 url = "https://scihub.copernicus.eu/apihub/search?"
@@ -55,8 +55,8 @@ download_url = "https://scihub.copernicus.eu/apihub/odata/v1/Products('{}')/$val
 dtreg = re.compile(r'S1\w_.+?_(\d{4})(\d{2})(\d{2})T.*')
 QUERY_TEMPLATE = 'IW AND producttype:SLC AND platformname:Sentinel-1 AND ' + \
                  'ingestiondate:[{0} TO {1}]'
-                 #'ingestiondate:[{0} TO {1}] ' + \
-                 #'( footprint:"Intersects(POLYGON(({2})))")'
+# 'ingestiondate:[{0} TO {1}] ' + \
+# '( footprint:"Intersects(POLYGON(({2})))")'
 
 # regexes
 PLATFORM_RE = re.compile(r'S1(.+?)_')
@@ -81,7 +81,7 @@ def get_accurate_times(filename_str, starttime_str, endtime_str):
     metadata_st = dateutil.parser.parse(starttime_str).strftime('%Y-%m-%dT%H:%M:%S')
     metadata_et = dateutil.parser.parse(endtime_str).strftime('%Y-%m-%dT%H:%M:%S')
     file_st = "{}-{}-{}T{}:{}:{}".format(m.group("s_year"), m.group("s_month"), m.group("s_day"), m.group("s_hour"),
-                                           m.group("s_minute"), m.group("s_seconds"))
+                                         m.group("s_minute"), m.group("s_seconds"))
     file_et = "{}-{}-{}T{}:{}:{}".format(m.group("e_year"), m.group("e_month"), m.group("e_day"), m.group("e_hour"),
                                          m.group("e_minute"), m.group("e_seconds"))
 
@@ -92,20 +92,28 @@ def get_accurate_times(filename_str, starttime_str, endtime_str):
         logger.info("End Timestamps Mismatch detected \n For {} \n End time in File Name: {} \n End time in meta"
                     "data: {} \n".format(filename_str, file_et, metadata_et))
 
-    start_microseconds = dateutil.parser.parse(starttime_str).strftime('.%f').rstrip('0').ljust(4, '0') + 'Z' # milliseconds + postfix from metadata
-    end_microseconds = dateutil.parser.parse(endtime_str).strftime('.%f').rstrip('0').ljust(4, '0') + 'Z' # milliseconds + postfix from metadata
-    starttime = "{}-{}-{}T{}:{}:{}{}".format(m.group("s_year"), m.group("s_month"), m.group("s_day"), m.group("s_hour"), m.group("s_minute"), m.group("s_seconds"), start_microseconds)
-    endtime = "{}-{}-{}T{}:{}:{}{}".format(m.group("e_year"), m.group("e_month"), m.group("e_day"), m.group("e_hour"), m.group("e_minute"), m.group("e_seconds"), end_microseconds)
+    start_microseconds = dateutil.parser.parse(starttime_str).strftime('.%f').rstrip('0').ljust(4,
+                                                                                                '0') + 'Z'  # milliseconds + postfix from metadata
+    end_microseconds = dateutil.parser.parse(endtime_str).strftime('.%f').rstrip('0').ljust(4,
+                                                                                            '0') + 'Z'  # milliseconds + postfix from metadata
+    starttime = "{}-{}-{}T{}:{}:{}{}".format(m.group("s_year"), m.group("s_month"), m.group("s_day"), m.group("s_hour"),
+                                             m.group("s_minute"), m.group("s_seconds"), start_microseconds)
+    endtime = "{}-{}-{}T{}:{}:{}{}".format(m.group("e_year"), m.group("e_month"), m.group("e_day"), m.group("e_hour"),
+                                           m.group("e_minute"), m.group("e_seconds"), end_microseconds)
     return starttime, endtime
+
 
 def massage_result(res):
     """Massage result JSON into HySDS met json."""
 
     # set int fields
     for i in res['int']:
-        if i['name'] == 'orbitnumber': res['orbitNumber'] = int(i['content'])
-        elif i['name'] == 'relativeorbitnumber': res['trackNumber'] = int(i['content'])
-        else: res[i['name']] = int(i['content'])
+        if i['name'] == 'orbitnumber':
+            res['orbitNumber'] = int(i['content'])
+        elif i['name'] == 'relativeorbitnumber':
+            res['trackNumber'] = int(i['content'])
+        else:
+            res[i['name']] = int(i['content'])
     del res['int']
 
     # set links
@@ -119,25 +127,34 @@ def massage_result(res):
     # set string fields
     for i in res['str']:
         if i['name'] == 'orbitdirection':
-            if i['content'] == "DESCENDING": res['direction'] = "dsc"
-            elif i['content'] == "ASCENDING": res['direction'] = "asc"
-            else: raise RuntimeError("Failed to recognize orbit direction: %s" % i['content'])
-        elif i['name'] == 'endposition': res['sensingStop'] = i['content']
-        else: res[i['name']] = i['content']
+            if i['content'] == "DESCENDING":
+                res['direction'] = "dsc"
+            elif i['content'] == "ASCENDING":
+                res['direction'] = "asc"
+            else:
+                raise RuntimeError("Failed to recognize orbit direction: %s" % i['content'])
+        elif i['name'] == 'endposition':
+            res['sensingStop'] = i['content']
+        else:
+            res[i['name']] = i['content']
     del res['str']
 
     # set date fields
     for i in res['date']:
-        if i['name'] == 'beginposition': res['sensingStart'] = i['content'].replace('Z', '')
-        elif i['name'] == 'endposition': res['sensingStop'] = i['content'].replace('Z', '')
-        else: res[i['name']] = i['content']
+        if i['name'] == 'beginposition':
+            res['sensingStart'] = i['content'].replace('Z', '')
+        elif i['name'] == 'endposition':
+            res['sensingStop'] = i['content'].replace('Z', '')
+        else:
+            res[i['name']] = i['content']
     del res['date']
 
     # set data_product_name and archive filename
     res['data_product_name'] = "acquisition-%s" % res['title']
     res['archive_filename'] = "%s.zip" % res['title']
 
-    correct_start_time, correct_end_time = get_accurate_times(filename_str=res["title"], starttime_str=res["sensingStart"],
+    correct_start_time, correct_end_time = get_accurate_times(filename_str=res["title"],
+                                                              starttime_str=res["sensingStart"],
                                                               endtime_str=res["sensingStop"])
     res["sensingStart"] = correct_start_time
     res["sensingStop"] = correct_end_time
@@ -160,12 +177,16 @@ def massage_result(res):
     # verify track
 
     if res['platform'] == "Sentinel-1A":
-       if res['track_number'] != (res['orbitNumber']-73)%175+1:
-           logger.info("WARNING: Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
+        if res['track_number'] != (res['orbitNumber'] - 73) % 175 + 1:
+            logger.info(
+                "WARNING: Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(
+                    res.get('orbitNumber', ''), res.get('track_number', '')))
     if res['platform'] == "Sentinel-1B":
-       if res['track_number'] != (res['orbitNumber']-27)%175+1:
-           logger.info("WARNING: Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
-    
+        if res['track_number'] != (res['orbitNumber'] - 27) % 175 + 1:
+            logger.info(
+                "WARNING: Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(
+                    res.get('orbitNumber', ''), res.get('track_number', '')))
+
 
 def get_dataset_json(met, version):
     """Generated HySDS dataset JSON from met JSON."""
@@ -183,7 +204,8 @@ def create_acq_dataset(ds, met, root_ds_dir=".", browse=False):
     """Create acquisition dataset. Return tuple of (dataset ID, dataset dir)."""
 
     # create dataset dir
-    id = "acquisition-{}_{}_{}_{}-esa_scihub".format(met["platform"],get_timestamp_for_filename(met["sensingStart"]), met["track_number"], met["sensoroperationalmode"])
+    id = "acquisition-{}_{}_{}_{}-esa_scihub".format(met["platform"], get_timestamp_for_filename(met["sensingStart"]),
+                                                     met["track_number"], met["sensoroperationalmode"])
     root_ds_dir = os.path.abspath(root_ds_dir)
     ds_dir = os.path.join(root_ds_dir, id)
     if not os.path.isdir(ds_dir): os.makedirs(ds_dir, 0755)
@@ -269,12 +291,12 @@ def get_existing_acqs(start_time, end_time, location=False):
 
     if location:
         geo_shape = {
-                    "geo_shape": {
-                        "location": {
-                            "shape": location
-                        }
-                    }
+            "geo_shape": {
+                "location": {
+                    "shape": location
                 }
+            }
+        }
         query["query"]["filtered"]["filter"] = geo_shape
 
     acq_ids = []
@@ -320,7 +342,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
         existing_acqs = get_existing_acqs(start_time=starttime, end_time=endtime, location=json.loads(polygon))
     else:
         existing_acqs = get_existing_acqs(start_time=starttime, end_time=endtime)
-    
+
     # query
     prods_all = {}
     offset = 0
@@ -330,7 +352,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
     prods_missing = []
     prods_found = []
     while loop:
-        query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
+        query_params = {"q": query, "rows": 100, "format": "json", "start": offset}
         logger.info("query: %s" % json.dumps(query_params, indent=2))
         # query_url = url + "&".join(["%s=%s" % (i, query_params[i]) for i in query_params])
         # .replace("(", "%28").replace(")", "%29").replace(" ", "%20")
@@ -338,7 +360,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
         response = session.get(url, params=query_params, verify=False)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
-            logger.error("Error: %s\n%s" % (response.status_code,response.text))
+            logger.error("Error: %s\n%s" % (response.status_code, response.text))
         response.raise_for_status()
         results = response.json()
         if total_results_expected is None:
@@ -347,13 +369,14 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
         if entries is None: break
         with open('res.json', 'w') as f:
             f.write(json.dumps(entries, indent=2))
-        if isinstance(entries, dict): entries = [ entries ] # if one entry, scihub doesn't return a list
+        if isinstance(entries, dict): entries = [entries]  # if one entry, scihub doesn't return a list
         count = len(entries)
         offset += count
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try: massage_result(met)
+            try:
+                massage_result(met)
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
@@ -366,7 +389,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
                 'ds': ds,
             }
 
-            #check if exists
+            # check if exists
             if met["id"] not in existing_acqs:
                 prods_missing.append(met["id"])
             else:
@@ -381,7 +404,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
     msg = "Global data availability for %s through %s:\n" % (starttime, endtime)
     table_stats = [["total on apihub", len(prods_all)],
                    ["missing products", len(prods_missing)],
-                  ]
+                   ]
     msg += tabulate(table_stats, tablefmt="grid")
 
     # print counts by track
@@ -392,8 +415,8 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
     msg += "\n\nMissing products:\n"
     msg += tabulate([("missing", i) for i in sorted(prods_missing)], tablefmt="grid")
     msg += "\nMissing %d in %s out of %d in ApiHub (OpenSearch)\n\n" % (len(prods_missing),
-                                                           ds_es_url,
-                                                           len(prods_all))
+                                                                        ds_es_url,
+                                                                        len(prods_all))
     logger.info(msg)
 
     # error check options
@@ -433,20 +456,21 @@ def convert_geojson(input_geojson):
                 input_geojson = ast.literal_eval(input_geojson)
             except:
                 raise Exception('unable to parse input geojson string: {0}'.format(input_geojson))
-    #attempt to parse the coordinates to ensure a valid geojson
-    #print('input_geojson: {}'.format(input_geojson))
-    depth = lambda L: isinstance(L, list) and max(map(depth, L))+1
+    # attempt to parse the coordinates to ensure a valid geojson
+    # print('input_geojson: {}'.format(input_geojson))
+    depth = lambda L: isinstance(L, list) and max(map(depth, L)) + 1
     d = depth(input_geojson)
     try:
         # if it's a full geojson
         if d is False and 'coordinates' in input_geojson.keys():
             polygon = MultiPolygon([Polygon(input_geojson['coordinates'][0])])
             return polygon
-        else: # it's a list of coordinates
+        else:  # it's a list of coordinates
             polygon = MultiPolygon([Polygon(input_geojson)])
             return polygon
     except:
         raise Exception('unable to parse geojson: {0}'.format(input_geojson))
+
 
 def convert_to_wkt(input_obj):
     '''converts a polygon object from shapely into a wkt string for querying'''
@@ -456,11 +480,11 @@ def convert_to_wkt(input_obj):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ds_es_url", help="ElasticSearch URL for acquisition dataset, e.g. " +
-                         "http://aria-products.jpl.nasa.gov:9200/grq_v2.0_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
+                                          "http://aria-products.jpl.nasa.gov:9200/grq_v2.0_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
     parser.add_argument("datasets_cfg", help="HySDS datasets.json file, e.g. " +
-                         "/home/ops/verdi/etc/datasets.json")
+                                             "/home/ops/verdi/etc/datasets.json")
     parser.add_argument("starttime", help="Start time in ISO8601 format", nargs='?',
-                        default="%sZ" % (datetime.utcnow()-timedelta(days=1)).isoformat())
+                        default="%sZ" % (datetime.utcnow() - timedelta(days=1)).isoformat())
     parser.add_argument("endtime", help="End time in ISO8601 format", nargs='?',
                         default="%sZ" % datetime.utcnow().isoformat())
     parser.add_argument("--polygon", help="Geojson polygon constraint", default=False, required=False)
