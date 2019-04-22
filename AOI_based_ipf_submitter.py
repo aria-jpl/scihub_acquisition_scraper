@@ -156,6 +156,7 @@ if __name__ == "__main__":
     location = ctx.get("spatial_extent")
     start_time = ctx.get("start_time")
     end_time = ctx.get("end_time")
+    scihub_days_bef_thresh = ctx.get("scihub_days_bef_thresh")
     tag = ctx.get("container_specification").get("version")
     acqs_list = get_non_ipf_acquisitions(location, start_time, end_time)
 
@@ -164,7 +165,7 @@ if __name__ == "__main__":
         print("Date:" + acq.get("metadata").get("sensingStart"))
         acq_date = acq.get("metadata").get("sensingStart")
         start_time = dateutil.parser.parse(acq_date)
-        if start_time.replace(tzinfo=None) < datetime.now() - timedelta(days=1):
+        if start_time.replace(tzinfo=None) < datetime.now() - timedelta(days=scihub_days_bef_thresh):
             endpoint = "asf"
         else:
             endpoint = "scihub"

@@ -7,7 +7,7 @@ from hysds_commons.job_utils import submit_mozart_job
 BASE_PATH = os.path.dirname(__file__)
 
 
-def submit_global_ipf(spatial_extent, start_time, end_time, release):
+def submit_global_ipf(spatial_extent, start_time, end_time, scihub_days_bef, release):
     params = [
         {
             "name": "AOI_name",
@@ -33,6 +33,11 @@ def submit_global_ipf(spatial_extent, start_time, end_time, release):
             "name": "ipf_scraper_release",
             "from": "value",
             "value": release
+        },
+        {
+            "name": "scihub_days_bef_thresh",
+            "from": "value",
+            "value": scihub_days_bef
         }
     ]
 
@@ -60,6 +65,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", help="PGE docker image tag (release, version, " +
                                       "or branch) to propagate",
+                        default="master", required=False)
+    parser.add_argument("--scihub_days_bef_thresh", help="length of time (in days) before now to query with "
+                                                     "scihub instead of asf endpoint",
                         default="master", required=False)
     args = parser.parse_args()
 

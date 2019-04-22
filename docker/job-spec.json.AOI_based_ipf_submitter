@@ -29,6 +29,10 @@
     {
       "name": "ipf_scraper_release",
       "destination": "context"
+    },
+    {
+      "name": "scihub_days_bef_thresh",
+      "destination": "context"
     }
   ]
 }
