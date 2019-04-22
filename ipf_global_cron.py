@@ -34,8 +34,6 @@ def submit_global_ipf(spatial_extent, start_time, end_time, release):
             "from": "value",
             "value": release
         }
-
-
     ]
 
     rule = {

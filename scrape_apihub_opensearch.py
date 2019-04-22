@@ -200,7 +200,7 @@ def create_acq_dataset(ds, met, root_ds_dir=".", browse=False):
         json.dump(ds, f, indent=2, sort_keys=True)
     with open(met_file, 'w') as f:
         json.dump(met, f, indent=2, sort_keys=True)
-
+   
     # create browse?
     if browse:
         browse_jpg = os.path.join(ds_dir, "browse.jpg")
@@ -353,7 +353,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, polygon=False, user=
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try: massage_result(met)
+            try: massage_result(met) 
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
@@ -468,7 +468,7 @@ if __name__ == "__main__":
                         default="v2.0", required=False)
     parser.add_argument("--user", help="SciHub user", default=None, required=False)
     parser.add_argument("--password", help="SciHub password", default=None, required=False)
-    parser.add_argument("--email", help="email addresses to send email to",
+    parser.add_argument("--email", help="email addresses to send email to", 
                         nargs='+', required=False)
     parser.add_argument("--browse", help="create browse images", action='store_true')
     group = parser.add_mutually_exclusive_group()
