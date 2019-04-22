@@ -8,7 +8,7 @@ import os, sys, time, re, requests, json, logging, traceback, argparse
 import shutil, hashlib, getpass, tempfile, backoff
 from lxml.etree import fromstring, tostring
 from subprocess import check_call
-# import requests_cache
+#import requests_cache
 from datetime import datetime, timedelta
 from urlparse import urlparse
 from tabulate import tabulate
@@ -23,32 +23,32 @@ from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
 
-# from notify_by_email import send_email
+#from notify_by_email import send_email
 
 
 # disable warnings for SSL verification
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 
+
 # monkey patch and clean cache
-# expire_after = timedelta(hours=1)
-# requests_cache.install_cache('check_apihub', expire_after=expire_after)
+#expire_after = timedelta(hours=1)
+#requests_cache.install_cache('check_apihub', expire_after=expire_after)
 
 
 # set logger
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
 logging.basicConfig(format=log_format, level=logging.INFO)
 
-
 class LogFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, 'id'): record.id = '--'
         return True
 
-
 logger = logging.getLogger('scrape_apihub_odata')
 logger.setLevel(logging.INFO)
 logger.addFilter(LogFilter())
+
 
 # global constants
 url = "https://scihub.copernicus.eu/apihub/odata/v1/Products?"
@@ -56,9 +56,9 @@ download_url = "https://scihub.copernicus.eu/apihub/odata/v1/Products('{}')/$val
 dtreg = re.compile(r'S1\w_.+?_(\d{4})(\d{2})(\d{2})T.*')
 QUERY_TEMPLATE = "IngestionDate ge datetime'{0}' and IngestionDate lt datetime'{1}' " + \
                  "and substringof('IW_SLC',Name)"
-# QUERY_TEMPLATE = "substringof('IW_SLC',Name) and IngestionDate gt datetime'{0}'"
-# QUERY_TEMPLATE = "substringof('IW_SLC',Name)"
-# QUERY_TEMPLATE = "substringof('IW_SLC',Name) and substringof('20170409T',Name)"
+#QUERY_TEMPLATE = "substringof('IW_SLC',Name) and IngestionDate gt datetime'{0}'"
+#QUERY_TEMPLATE = "substringof('IW_SLC',Name)"
+#QUERY_TEMPLATE = "substringof('IW_SLC',Name) and substringof('20170409T',Name)"
 
 # regexes
 PLATFORM_RE = re.compile(r'S1(.+?)_')
@@ -69,12 +69,9 @@ def massage_result(res):
 
     # set int fields
     for i in res['int']:
-        if i['name'] == 'orbitnumber':
-            res['orbitNumber'] = int(i['content'])
-        elif i['name'] == 'relativeorbitnumber':
-            res['trackNumber'] = int(i['content'])
-        else:
-            res[i['name']] = int(i['content'])
+        if i['name'] == 'orbitnumber': res['orbitNumber'] = int(i['content'])
+        elif i['name'] == 'relativeorbitnumber': res['trackNumber'] = int(i['content'])
+        else: res[i['name']] = int(i['content'])
     del res['int']
 
     # set links
@@ -88,26 +85,18 @@ def massage_result(res):
     # set string fields
     for i in res['str']:
         if i['name'] == 'orbitdirection':
-            if i['content'] == "DESCENDING":
-                res['direction'] = "dsc"
-            elif i['content'] == "ASCENDING":
-                res['direction'] = "asc"
-            else:
-                raise RuntimeError("Failed to recognize orbit direction: %s" % i['content'])
-        elif i['name'] == 'endposition':
-            res['sensingStop'] = i['content']
-        else:
-            res[i['name']] = i['content']
+            if i['content'] == "DESCENDING": res['direction'] = "dsc"
+            elif i['content'] == "ASCENDING": res['direction'] = "asc"
+            else: raise RuntimeError("Failed to recognize orbit direction: %s" % i['content'])
+        elif i['name'] == 'endposition': res['sensingStop'] = i['content']
+        else: res[i['name']] = i['content']
     del res['str']
 
     # set date fields
     for i in res['date']:
-        if i['name'] == 'beginposition':
-            res['sensingStart'] = i['content'].replace('Z', '')
-        elif i['name'] == 'endposition':
-            res['sensingStop'] = i['content'].replace('Z', '')
-        else:
-            res[i['name']] = i['content']
+        if i['name'] == 'beginposition': res['sensingStart'] = i['content'].replace('Z', '')
+        elif i['name'] == 'endposition': res['sensingStop'] = i['content'].replace('Z', '')
+        else: res[i['name']] = i['content']
     del res['date']
 
     # set data_product_name and archive filename
@@ -127,10 +116,10 @@ def massage_result(res):
 
     # verify track
     if res['platform'] == "Sentinel-1A":
-        if res['trackNumber'] != (res['orbitNumber'] - 73) % 175 + 1:
+        if res['trackNumber'] != (res['orbitNumber']-73)%175+1:
             raise RuntimeError("Failed to verify S1A relative orbit number and track number.")
     if res['platform'] == "Sentinel-1B":
-        if res['trackNumber'] != (res['orbitNumber'] - 27) % 175 + 1:
+        if res['trackNumber'] != (res['orbitNumber']-27)%175+1:
             raise RuntimeError("Failed to verify S1B relative orbit number and track number.")
 
 
@@ -212,16 +201,16 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     total_results_expected = None
     ids_by_track = {}
     while loop:
-        # query_params = { "$filter": query, "$skip": offset, "$top": 100, "$format": "json" }
-        # query_params = { "$filter": query, "$skip": offset, "$top": 100, "$format": "xml" }
-        query_params = {"$filter": query, "$skip": offset, "$top": 100, "$format": "xml"}
+        #query_params = { "$filter": query, "$skip": offset, "$top": 100, "$format": "json" }
+        #query_params = { "$filter": query, "$skip": offset, "$top": 100, "$format": "xml" }
+        query_params = { "$filter": query, "$skip": offset, "$top": 100, "$format": "xml" }
         logger.info("query: %s" % json.dumps(query_params, indent=2))
-        # query_url = url + "&".join(["%s=%s" % (i, query_params[i]) for i in query_params]).replace(" ", "%20").replace("'", "%27")
-        # logger.info("query_url: %s" % query_url)
+        #query_url = url + "&".join(["%s=%s" % (i, query_params[i]) for i in query_params]).replace(" ", "%20").replace("'", "%27")
+        #logger.info("query_url: %s" % query_url)
         response = session.get(url, params=query_params, verify=False)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
-            logger.error("Error: %s\n%s" % (response.status_code, response.text))
+            logger.error("Error: %s\n%s" % (response.status_code,response.text))
         response.raise_for_status()
         results = fromstring(response.content)
         print("%s" % tostring(results, pretty_print=True))
@@ -231,21 +220,20 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         if entries is None: break
         with open('res.json', 'w') as f:
             f.write(json.dumps(entries, indent=2))
-        if isinstance(entries, dict): entries = [entries]  # if one entry, scihub doesn't return a list
+        if isinstance(entries, dict): entries = [ entries ] # if one entry, scihub doesn't return a list
         count = len(entries)
         offset += count
         loop = True if count > 0 else False
         logger.info("Found: {0} results".format(count))
         for met in entries:
-            try:
-                massage_result(met)
+            try: massage_result(met)
             except Exception, e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
                 raise
-            # logger.info(json.dumps(met, indent=2, sort_keys=True))
+            #logger.info(json.dumps(met, indent=2, sort_keys=True))
             ds = get_dataset_json(met, version)
-            # logger.info(json.dumps(ds, indent=2, sort_keys=True))
+            #logger.info(json.dumps(ds, indent=2, sort_keys=True))
             prods_all[met['data_product_name']] = {
                 'met': met,
                 'ds': ds,
@@ -263,7 +251,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
         if r.status_code == 200:
             prods_found.append(acq_id)
         elif r.status_code == 404:
-            # logger.info("missing %s" % acq_id)
+            #logger.info("missing %s" % acq_id)
             prods_missing.append(acq_id)
         else:
             r.raise_for_status()
@@ -272,7 +260,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     msg = "Global data availability for %s through %s:\n" % (starttime, endtime)
     table_stats = [["total on apihub", len(prods_all)],
                    ["missing products", len(prods_missing)],
-                   ]
+                  ]
     msg += tabulate(table_stats, tablefmt="grid")
 
     # print counts by track
@@ -283,8 +271,8 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
     msg += "\n\nMissing products:\n"
     msg += tabulate([("missing", i) for i in sorted(prods_missing)], tablefmt="grid")
     msg += "\nMissing %d in %s out of %d in ApiHub (ODATA)\n\n" % (len(prods_missing),
-                                                                   ds_es_url,
-                                                                   len(prods_all))
+                                                           ds_es_url,
+                                                           len(prods_all))
     logger.info(msg)
 
     # error check options
@@ -306,7 +294,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
             logger.info("Created %s\n" % acq_id)
 
     # email
-    # if email_to is not None:
+    #if email_to is not None:
     #    subject = "[check_apihub] %s S1 SLC count" % aoi['data_product_name']
     #    send_email(getpass.getuser(), email_to, [], subject, msg)
 
@@ -314,11 +302,11 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, email_to, user=None, password=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ds_es_url", help="ElasticSearch URL for acquisition dataset, e.g. " +
-                                          "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
+                         "http://aria-products.jpl.nasa.gov:9200/grq_v1.1_acquisition-s1-iw_slc/acquisition-S1-IW_SLC")
     parser.add_argument("datasets_cfg", help="HySDS datasets.json file, e.g. " +
-                                             "/home/ops/verdi/etc/datasets.json")
+                         "/home/ops/verdi/etc/datasets.json")
     parser.add_argument("starttime", help="Start time in ISO8601 format", nargs='?',
-                        default="%sZ" % (datetime.utcnow() - timedelta(days=1)).isoformat())
+                        default="%sZ" % (datetime.utcnow()-timedelta(days=1)).isoformat())
     parser.add_argument("endtime", help="End time in ISO8601 format", nargs='?',
                         default="%sZ" % datetime.utcnow().isoformat())
     parser.add_argument("--dataset_version", help="dataset version",
