@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     start_time = "{}Z".format((datetime.utcnow()-timedelta(days=2)).isoformat())
     end_time = "{}Z".format(datetime.utcnow().isoformat())
-    submit_global_ipf(global_extent, start_time, end_time, tag)
+    submit_global_ipf(global_extent, start_time, end_time, scihub_days_bef, tag)
 
 
 
