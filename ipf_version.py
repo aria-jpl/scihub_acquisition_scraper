@@ -36,7 +36,11 @@ def check_prod_avail(session, link):
     """
 
     product_url = "{}$value".format(link)
+<<<<<<< HEAD
     response = session.get(product_url, verify=False, timeout=180)
+=======
+    response = session.head(product_url, verify=False, timeout=180)
+>>>>>>> 764df39... better way of dealing with soft time limit exceeded
     return response.status_code
 
 
