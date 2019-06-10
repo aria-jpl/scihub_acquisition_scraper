@@ -132,7 +132,7 @@ def extract_asf_ipf(id):
                 'gmd:composedOf/gmd:DS_DataSet/gmd:has/gmi:MI_Metadata/gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:lineage/gmd:LI_Lineage/gmd:processStep/gmd:LI_ProcessStep/gmd:description/gco:CharacterString',
                 ns).text
         except AttributeError:
-            raise Exception("Transient Error: IPF not found in XML from download URL")
+            raise Exception("IPF not found in XML from download URL. Failed to extract IPF version from ASF.")
         if ipf_string:
             ipf = ipf_string.split('version')[1].split(')')[0].strip()
     except Exception as err:
