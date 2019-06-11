@@ -118,11 +118,11 @@ def extract_asf_ipf(id):
         logger.info("Response from ASF: {}".format(response.text))
         # download the .iso.xml file, assumes earthdata login credentials are in your .netrc file
         if len(results[0]) == 0:
-            raise Exception("Acquisition {} not found at ASF.".format(id))
+            raise Exception("Acquisition not found at ASF.")
         response = requests.get(results[0][0]['downloadUrl'])
         response.raise_for_status()
         if response.status_code != 200:
-            raise Exception("Request to ASF failed with status {}. {}".format(response.status_code, request_string))
+            raise Exception("Request to ASF failed with status {}.".format(response.status_code))
         # parse the xml file to extract the ipf version string
         root = fromstring(response.text.encode('utf-8'))
         ns = {'gmd': 'http://www.isotc211.org/2005/gmd', 'gmi': 'http://www.isotc211.org/2005/gmi',
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     if check_ipf_avail(id):
         logger.error("Acquisition already has IPF, not processing with scraping")
         with open('_alt_error.txt', 'w') as f:
-            f.write("Acquisition already has IPF, not processing with scraping for {}".format(id))
+            f.write("Acquisition already has IPF, not proceeding with scraping for {}".format(id))
             f.close()
         sys.exit(1)
     
@@ -207,8 +207,8 @@ if __name__ == "__main__":
                 with open('_alt_error.txt', 'w') as f:
                     f.write("{}".format(ex))
                 with open('_alt_traceback.txt', 'w') as f:
-                    f.write("%s\n" % traceback.format_exc())
-                raise Exception("{}.".format(ex))
+                    f.write("Failed to get IPF for {}. \n{}. \n {}".format(id, ex, traceback.format_exc()))
+                raise Exception("Failed to get IPF for {}. {}.".format(id, ex))
     else:
         try:
             ipf = extract_scihub_ipf(met)
@@ -218,7 +218,7 @@ if __name__ == "__main__":
             with open('_alt_error.txt', 'w') as f:
                 f.write("{}".format(ex))
             with open('_alt_traceback.txt', 'w') as f:
-                f.write("%s\n" % traceback.format_exc())
-            raise Exception("{}.".format(ex))
+                f.write("Failed to get IPF for {}. \n{}. \n {}".format(id, ex, traceback.format_exc()))
+            raise Exception("Failed to get IPF for {}. {}.".format(id, ex))
 
     update_ipf(id, ipf)
