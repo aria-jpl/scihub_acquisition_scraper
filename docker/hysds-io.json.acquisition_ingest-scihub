@@ -1,10 +1,7 @@
 {
   "submission_type":"individual",
+  "label": "Ingest Acquisitions from SciHub",
   "params" : [
-    {
-        "name": "es_dataset_url",
-        "from": "submitter"
-    },
     {
         "name": "ds_cfg",
         "from": "value",
@@ -12,11 +9,13 @@
     },
     {
         "name": "starttime",
-        "from": "submitter"
+        "from": "submitter",
+        "placeholder": "start time in format YYYY-mm-ddTHH:MM:SS.sssZ"
     },
     {
         "name": "endtime",
-        "from": "submitter"
+        "from": "submitter",
+        "placeholder": "end time in format YYYY-mm-ddTHH:MM:SS.sssZ"
     },
     {
         "name": "ingest_flag",

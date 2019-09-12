@@ -1,0 +1,29 @@
+{
+  "submission_type":"iteration",
+  "label": "AOI based submission of acq scraper jobs",
+
+  "params" : [
+    {
+        "name": "AOI_name",
+        "from": "dataset_jpath:_id"
+    },
+    {
+        "name": "spatial_extent",
+        "from": "dataset_jpath:_source.location",
+        "lambda": "lambda x: __import__('json').dumps(x).replace(' ','')"
+    },
+    {
+        "name": "start_time",
+        "from": "dataset_jpath:_source.starttime"
+    },
+    {
+        "name": "end_time",
+        "from": "dataset_jpath:_source.endtime"
+    },
+    {
+        "name": "dataset_version",
+        "from": "value",
+        "value": "v2.0"
+    }
+  ]
+}
