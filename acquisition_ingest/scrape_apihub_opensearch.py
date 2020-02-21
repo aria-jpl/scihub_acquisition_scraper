@@ -4,6 +4,8 @@ Query ApiHub (OpenSearch) for all S1 SLC scenes globally and create
 acquisition datasets.
 """
 
+from builtins import str
+from builtins import map
 import os, time, re, requests, json, logging, traceback, argparse
 import shutil, tempfile, backoff
 from subprocess import check_call
@@ -16,7 +18,7 @@ import ast
 import shapely.wkt
 from shapely.geometry import Polygon, MultiPolygon
 import geojson
-from acquisition_ingest import scrape_acquisition_opensearch
+import scrape_acquisition_opensearch
 from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
@@ -210,7 +212,7 @@ def create_acq_dataset(ds, met, root_ds_dir=".", browse=False):
     id = "acquisition-{}-esa_scihub".format(met["title"])
     root_ds_dir = os.path.abspath(root_ds_dir)
     ds_dir = os.path.join(root_ds_dir, id)
-    if not os.path.isdir(ds_dir): os.makedirs(ds_dir, 0755)
+    if not os.path.isdir(ds_dir): os.makedirs(ds_dir, 0o755)
 
     # append source to met
     met['query_api'] = "opensearch"
@@ -266,7 +268,7 @@ def get_existing_acqs(start_time, end_time, location=False):
     :param location:
     :param start_time:
     :param end_time:
-    :return:
+    :return: acq_ids, set of existing acquisition ids
     """
     index = "grq_v2.0_acquisition-s1-iw_slc"
 
@@ -276,24 +278,8 @@ def get_existing_acqs(start_time, end_time, location=False):
                 "query": {
                     "bool": {
                         "must": [
-                            {
-                                "range":
-                                    {
-                                        "endtime":
-                                            {
-                                                "from": start_time
-                                            }
-                                    }
-                            },
-                            {
-                                "range":
-                                    {
-                                        "starttime":
-                                            {
-                                                "to": end_time
-                                            }
-                                    }
-                            }
+                            {"range": {"endtime": {"from": start_time}}},
+                            {"range": {"starttime": {"to": end_time}}}
                         ]
                     }
                 }
@@ -303,26 +289,32 @@ def get_existing_acqs(start_time, end_time, location=False):
 
     if location:
         geo_shape = {
-                    "geo_shape": {
-                        "location": {
-                            "shape": location
-                        }
-                    }
-                }
+            "geo_shape": {
+                "location": {"shape": location}
+            }
+        }
         query["query"]["filtered"]["filter"] = geo_shape
 
-    acq_ids = []
+    acq_ids = set()
     rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
-    url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
-    r = requests.post(url, data=json.dumps(query))
+    es_url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
+    r = requests.post(es_url, data=json.dumps(query))
+
+    if r.status_code == 404:
+        logger.error("%s index does not exist, creating index" % index)
+        create_acq_index_url = "%s/%s" % (rest_url, index)
+        requests.put(create_acq_index_url)
+        logger.info("created index: %s" % index)
+        return set()
+
     r.raise_for_status()
     scan_result = r.json()
     count = scan_result['hits']['total']
     if count == 0:
-        return []
+        return set()
     if '_scroll_id' not in scan_result:
         print("_scroll_id not found in scan_result. Returning empty array for the query :\n%s" % query)
-        return []
+        return set()
     scroll_id = scan_result['_scroll_id']
     hits = []
     while True:
@@ -334,7 +326,7 @@ def get_existing_acqs(start_time, end_time, location=False):
         hits.extend(res['hits']['hits'])
 
     for item in hits:
-        acq_ids.append(item.get("_source").get("metadata").get("id"))
+        acq_ids.add(item.get("_source").get("metadata").get("id"))
 
     return acq_ids
 
@@ -368,7 +360,7 @@ def create_report(starttime, endtime, polygon, still_missing, aoi_name=None, ver
     met["missing_count"] = len(still_missing)
     met["missing acquisitions"] = still_missing
 
-    os.makedirs(label, 0755)
+    os.makedirs(label, 0o755)
     ds_file = os.path.join(label, "{}.dataset.json".format(label))
     met_file = os.path.join(label, "{}.met.json".format(label))
     with open(ds_file, 'w') as f:
@@ -431,7 +423,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
         logger.info("Found: {0} results".format(count))
         for met in entries:
             try: massage_result(met) 
-            except Exception, e:
+            except Exception as e:
                 logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
                 raise
@@ -499,11 +491,11 @@ def convert_geojson(input_geojson):
                 raise Exception('unable to parse input geojson string: {0}'.format(input_geojson))
     # attempt to parse the coordinates to ensure a valid geojson
     # print('input_geojson: {}'.format(input_geojson))
-    depth = lambda L: isinstance(L, list) and max(map(depth, L))+1
+    depth = lambda L: isinstance(L, list) and max(list(map(depth, L)))+1
     d = depth(input_geojson)
     try:
         # if it's a full geojson
-        if d is False and 'coordinates' in input_geojson.keys():
+        if d is False and 'coordinates' in list(input_geojson.keys()):
             polygon = MultiPolygon([Polygon(input_geojson['coordinates'][0])])
             return polygon
         else: # it's a list of coordinates
