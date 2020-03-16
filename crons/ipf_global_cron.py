@@ -7,7 +7,7 @@ from hysds_commons.job_utils import submit_mozart_job
 BASE_PATH = os.path.dirname(__file__)
 
 
-def submit_global_ipf(spatial_extent, start_time, end_time, scihub_days_bef, release):
+def submit_global_ipf(spatial_extent, start_time, end_time, release):
     params = [
         {
             "name": "AOI_name",
@@ -28,16 +28,6 @@ def submit_global_ipf(spatial_extent, start_time, end_time, scihub_days_bef, rel
             "name": "end_time",
             "from": "value",
             "value": end_time
-        },
-        {
-            "name": "ipf_scraper_release",
-            "from": "value",
-            "value": release
-        },
-        {
-            "name": "scihub_days_bef_thresh",
-            "from": "value",
-            "value": scihub_days_bef
         }
     ]
 
@@ -63,11 +53,8 @@ if __name__ == "__main__":
     parser.add_argument("--tag", help="PGE docker image tag (release, version, " +
                                       "or branch) to propagate",
                         default="master", required=False)
-    parser.add_argument("--scihub_days_bef_thresh", help="length of time (in days) before now to query with "
-                                                     "scihub instead of asf endpoint",
-                        default="master", required=False)
     args = parser.parse_args()
-    scihub_days_bef = float(args.scihub_days_bef_thresh)
+
     tag = args.tag
     global_extent = {
               "coordinates": [
@@ -78,5 +65,5 @@ if __name__ == "__main__":
 
     start_time = "{}Z".format((datetime.utcnow()-timedelta(days=5)).isoformat())
     end_time = "{}Z".format(datetime.utcnow().isoformat())
-    submit_global_ipf(global_extent, start_time, end_time, scihub_days_bef, tag)
+    submit_global_ipf(global_extent, start_time, end_time, tag)
 
