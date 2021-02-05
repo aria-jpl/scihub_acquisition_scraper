@@ -6,13 +6,15 @@ import json
 import geojson
 from hysds.celery import app
 from hysds.dataset_ingest import ingest
-import requests
+#import requests
+from hysds.es_util import get_grq_es
 import re
 import shapely
 import os
 import traceback
 import shutil
 
+grq_es = get_grq_es()
 
 # set logger
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
@@ -102,12 +104,15 @@ def get_existing_acqs(start_time, end_time, location=False):
         query["query"]["filtered"]["filter"] = geo_shape
 
     acq_ids = []
-    rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
-    url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
-    r = requests.post(url, data=json.dumps(query))
+    #rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
+    #url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
+    #r = requests.post(url, data=json.dumps(query))
+    r = grq_es.query(index=index, body=query)
     r.raise_for_status()
     scan_result = r.json()
     count = scan_result['hits']['total']
+    print("The number of results returned is {}".format(count))
+    print("The result is {}".format(r))
     if count == 0:
         return []
     if '_scroll_id' not in scan_result:
@@ -115,16 +120,16 @@ def get_existing_acqs(start_time, end_time, location=False):
         return []
     scroll_id = scan_result['_scroll_id']
     hits = []
-    while True:
-        r = requests.post('%s/_search/scroll?scroll=60m' % rest_url, data=scroll_id)
-        res = r.json()
-        scroll_id = res['_scroll_id']
-        if len(res['hits']['hits']) == 0:
-            break
-        hits.extend(res['hits']['hits'])
+    # while True:
+    #     r = requests.post('%s/_search/scroll?scroll=60m' % rest_url, data=scroll_id)
+    #     res = r.json()
+    #     scroll_id = res['_scroll_id']
+    #     if len(res['hits']['hits']) == 0:
+    #         break
+    #     hits.extend(res['hits']['hits'])
 
-    for item in hits:
-        acq_ids.append(item.get("_id"))
+    # for item in hits:
+    #     acq_ids.append(item.get("_id"))
 
     return acq_ids
 
