@@ -296,9 +296,10 @@ def get_existing_acqs(start_time, end_time, location=False):
         query["query"]["filtered"]["filter"] = geo_shape
 
     acq_ids = set()
+    headers = {'Content-type': 'application/json'}
     rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
     es_url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
-    r = requests.post(es_url, data=json.dumps(query))
+    r = requests.post(es_url, data=json.dumps(query), headers=headers)
 
     if r.status_code == 404:
         logger.error("%s index does not exist, creating index" % index)
@@ -318,7 +319,7 @@ def get_existing_acqs(start_time, end_time, location=False):
     scroll_id = scan_result['_scroll_id']
     hits = []
     while True:
-        r = requests.post('%s/_search/scroll?scroll=60m' % rest_url, data=scroll_id)
+        r = requests.post('%s/_search/scroll?scroll=60m' % rest_url, data=scroll_id, headers=headers)
         res = r.json()
         scroll_id = res['_scroll_id']
         if len(res['hits']['hits']) == 0:
