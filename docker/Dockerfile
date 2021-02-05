@@ -1,4 +1,4 @@
-FROM hysds/pge-base:develop-es1
+FROM hysds/pge-base:latest
 
 MAINTAINER aria-dev "aria-dev@jpl.nasa.gov"
 LABEL description="SciHub/ApiHub scraper PGE"
