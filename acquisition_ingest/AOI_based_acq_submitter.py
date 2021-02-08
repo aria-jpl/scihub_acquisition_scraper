@@ -12,7 +12,7 @@ import requests
 import pandas as pd
 import numpy as np
 from hysds_commons.job_utils import submit_mozart_job
-import celeryconfig
+from hysds.celery import app
 
 
 def get_time_segments(start_time, end_time):
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         print(json.dumps(params))
 
         # using mozart rest api instead of hysds job utils
-        job_submit_url = os.path.join(celeryconfig.MOZART_URL, 'api/v0.2/job/submit')
+        job_submit_url = os.path.join(app.conf['MOZART_URL'], 'api/v0.2/job/submit')
         params = {
             'queue': 'factotum-job_worker-small',
             'priority': '3',
