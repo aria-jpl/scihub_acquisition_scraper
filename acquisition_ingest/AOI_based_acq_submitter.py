@@ -7,6 +7,8 @@ from __future__ import print_function
 from builtins import str
 from datetime import datetime
 import json
+import os 
+import requests
 import pandas as pd
 import numpy as np
 from hysds_commons.job_utils import submit_mozart_job
@@ -152,10 +154,37 @@ if __name__ == "__main__":
         print("submitting job of type {} for {}".format(job_spec, qtype))
         print(json.dumps(params))
 
-        submit_mozart_job({}, rule,
-                          hysdsio={
-                              "id": "internal-temporary-wiring",
-                              "params": params,
-                              "job-specification": job_spec
-                          },
-                          job_name=job_name)
+        # using mozart rest api instead of hysds job utils
+        job_submit_url = os.path.join(celeryconfig.MOZART_URL, 'api/v0.2/job/submit')
+        params = {
+            'queue': 'factotum-job_worker-small',
+            'priority': '3',
+            'tags': tag,
+            'type': job_spec,
+            'params': params,
+            'enable_dedup': False
+        }
+
+        print('submitting jobs with params: %s' %  params)
+        r = requests.post(job_submit_url, params=params, verify=False)
+        if r.status_code != 200:
+            r.raise_for_status()
+        result = r.json()
+        now = datetime.now()
+        if 'result' in result.keys() and 'success' in result.keys():
+            if result['success'] == True:
+                job_id = result['result']
+                print('%s: submitted job version: %s job_id: %s' % (now, version, job_id))
+            else:
+                print('%s: job not submitted successfully: %s' % (now, result))
+                raise Exception('job not submitted successfully: %s' % result)
+        else:
+            raise Exception('job not submitted successfully: %s' % result)
+
+        # submit_mozart_job({}, rule,
+        #                   hysdsio={
+        #                       "id": "internal-temporary-wiring",
+        #                       "params": params,
+        #                       "job-specification": job_spec
+        #                   },
+        #                   job_name=job_name)
