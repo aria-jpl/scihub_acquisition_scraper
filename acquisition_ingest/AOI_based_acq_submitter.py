@@ -12,6 +12,7 @@ import requests
 import pandas as pd
 import numpy as np
 from hysds_commons.job_utils import submit_mozart_job
+import celeryconfig
 
 
 def get_time_segments(start_time, end_time):
