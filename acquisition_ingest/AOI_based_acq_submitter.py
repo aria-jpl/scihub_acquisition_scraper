@@ -117,6 +117,13 @@ def get_job_params(aoi_name, job_type, starttime, endtime, polygon, dataset_vers
 
     return rule, params
 
+def parse_job_tags(tag_string):
+    if tag_string == None or tag_string == '':
+        return ''
+    tag_list = tag_string.split(',')
+    tag_list = ['"{0}"'.format(tag) for tag in tag_list]
+    return ','.join(tag_list)
+
 
 if __name__ == "__main__":
     '''
@@ -129,7 +136,8 @@ if __name__ == "__main__":
     starttime = ctx.get("start_time")
     endtime = ctx.get("end_time")
     polygon = ctx.get("spatial_extent")
-    tag = ctx.get("container_specification").get("version")
+    #tag = ctx.get("container_specification").get("version")
+    tag = '[{0}]'.format(parse_job_tags(ctx.get("container_specification").get("version"))),
     job_type = "job-acquisition_ingest-aoi"
     job_spec = "{}:{}".format(job_type, tag)
 
