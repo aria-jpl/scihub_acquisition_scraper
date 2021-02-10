@@ -297,9 +297,11 @@ def get_existing_acqs(start_time, end_time, location=False):
 
     acq_ids = set()
     headers = {'Content-type': 'application/json'}
-    rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
-    es_url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
-    r = requests.post(es_url, data=json.dumps(query), headers=headers)
+    #rest_url = app.conf["GRQ_ES_URL"][:-1] if app.conf["GRQ_ES_URL"].endswith('/') else app.conf["GRQ_ES_URL"]
+    # On SOAMC, all http traffic is routed through Mozart, so we have to use the that IP instead of GRQ's
+    rest_url = app.conf["JOBS_ES_URL"][:-5] if app.conf["JOBS_ES_URL"].endswith('9200') else app.conf["JOBS_ES_URL"]
+    es_url = "{}/grq_es/{}/_search".format(rest_url, index)
+    r = requests.post(es_url, data=json.dumps(query), headers=headers, verify=False)
 
     if r.status_code == 404:
         logger.error("%s index does not exist, creating index" % index)
