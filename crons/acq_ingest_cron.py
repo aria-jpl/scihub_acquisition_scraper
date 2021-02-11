@@ -40,7 +40,7 @@ def get_job_params(job_type, job_name, starttime, endtime):
 
     rule = {
         "rule_name": job_type.lstrip('job-'),
-        "queue": "factotum-job_worker-apihub_scraper_throttled",
+        "queue": "factotum-job_worker-small",
         "priority": 5,
         "kwargs": '{}'
     }
