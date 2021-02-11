@@ -9,7 +9,7 @@ from hysds_commons.job_utils import submit_mozart_job
 
 BASE_PATH = os.path.dirname(__file__)
 
-es_url = app.conf["GRQ_ES_URL"]
+es_url = app.conf["JOBS_ES_URL"]
 ES = elasticsearch.Elasticsearch(es_url)
 
 job_types = {
@@ -62,9 +62,12 @@ def get_non_ipf_acquisitions(location, start_time, end_time):
     }
 
     acq_list = []
-    rest_url = es_url[:-1] if es_url.endswith('/') else es_url
-    url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
-    r = requests.post(url, data=json.dumps(query))
+    #rest_url = es_url[:-1] if es_url.endswith('/') else es_url
+    #url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
+    headers = {'Content-type': 'application/json'}
+    rest_url = app.conf["JOBS_ES_URL"][:-5] if app.conf["JOBS_ES_URL"].endswith('9200') else app.conf["JOBS_ES_URL"]
+    url = "{}/grq_es/{}/_search".format(rest_url, index)
+    r = requests.post(url, data=json.dumps(query), headers=headers, verify=False)
     r.raise_for_status()
     scan_result = r.json()
     count = scan_result['hits']['total']
