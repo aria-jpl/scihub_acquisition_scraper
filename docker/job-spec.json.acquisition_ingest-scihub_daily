@@ -4,7 +4,7 @@
     "/export/home/hysdsops/.netrc": "/home/ops/.netrc"
   },
   "required-queues": [
-    "factotum-job_worker-apihub_scraper_throttled"
+    "factotum-job_worker-small"
   ],
   "disk_usage": "10GB",
   "soft_time_limit": 3300,
