@@ -33,7 +33,7 @@ def submit_global_ipf(spatial_extent, start_time, end_time, release):
 
     rule = {
         "rule_name": "{}_ipf_scraper".format("global"),
-        "queue": "factotum-job_worker-apihub_scraper_throttled",
+        "queue": "factotum-job_worker-small",
         "priority": '5',
         "kwargs": '{}'
     }
