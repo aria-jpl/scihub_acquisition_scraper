@@ -66,7 +66,7 @@ def get_non_ipf_acquisitions(location, start_time, end_time):
     #url = "{}/{}/_search?search_type=scan&scroll=60&size=10000".format(rest_url, index)
     headers = {'Content-type': 'application/json'}
     rest_url = app.conf["JOBS_ES_URL"][:-5] if app.conf["JOBS_ES_URL"].endswith('9200') else app.conf["JOBS_ES_URL"]
-    url = "{}/grq_es/{}/_search".format(rest_url, index)
+    url = "{}/grq_es/{}/_search?size=10000".format(rest_url, index)
     r = requests.post(url, data=json.dumps(query), headers=headers, verify=False)
     r.raise_for_status()
     scan_result = r.json()
