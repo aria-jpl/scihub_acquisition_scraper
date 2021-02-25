@@ -178,7 +178,7 @@ if __name__ == "__main__":
         }
 
         print('submitting jobs with params: %s' %  params)
-        //headers = {'Content-type': 'application/json'}
+        #headers = {'Content-type': 'application/json'}
         r = requests.post(job_submit_url, params=params, verify=False)
         if r.status_code != 200:
             r.raise_for_status()
