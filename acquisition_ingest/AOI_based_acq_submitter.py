@@ -116,7 +116,7 @@ def get_job_params(aoi_name, job_type, starttime, endtime, polygon, dataset_vers
         }
     ]
     '''
-    params = '{"aoi_name": "%s", "ds_cfg": "%s", "starttime": "%s", "endtime": "%s", "ingest_flag": "%s", "report_flag": "%s", "polygon_flag": "%s", "polygon": "%s", "ds_flag": "%s", "ds_version": "%s", "ingest_flag": "%s", "purpose_flag": "%s", "purpose": "%s", "report_flag": "%s"}' % (aoi_name, "datasets.json", starttime, endtime, "--ingest", "--report", "--polygon", polygon, "--dataset_version", dataset_version, "--ingest", "--purpose", "aoi_scrape", "--report")
+    params = '{"aoi_name": "%s", "ds_cfg": "%s", "starttime": "%s", "endtime": "%s", "ingest_flag": "%s", "report_flag": "%s", "polygon_flag": "%s", "polygon": %s, "ds_flag": "%s", "ds_version": "%s", "ingest_flag": "%s", "purpose_flag": "%s", "purpose": "%s", "report_flag": "%s"}' % (aoi_name, "datasets.json", starttime, endtime, "--ingest", "--report", "--polygon", polygon, "--dataset_version", dataset_version, "--ingest", "--purpose", "aoi_scrape", "--report")
 
     return rule, params
 
