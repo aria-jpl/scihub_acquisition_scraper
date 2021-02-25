@@ -139,8 +139,7 @@ if __name__ == "__main__":
     starttime = ctx.get("start_time")
     endtime = ctx.get("end_time")
     polygon = ctx.get("spatial_extent")
-    #tag = ctx.get("container_specification").get("version")
-    tag = '[{0}]'.format(parse_job_tags(ctx.get("container_specification").get("version"))),
+    tag = ctx.get("container_specification").get("version")
     job_type = "job-acquisition_ingest-aoi"
     job_spec = "{}:{}".format(job_type, tag)
 
@@ -165,7 +164,8 @@ if __name__ == "__main__":
 
         print("submitting job of type {} for {}".format(job_spec, qtype))
         print(json.dumps(params))
-
+        tag = '[{0}]'.format(parse_job_tags(tag))
+        
         # using mozart rest api instead of hysds job utils
         job_submit_url = os.path.join(app.conf['MOZART_URL'], 'api/v0.2/job/submit')
         params = {
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         if 'result' in result.keys() and 'success' in result.keys():
             if result['success'] == True:
                 job_id = result['result']
-                print('%s: submitted job version: %s job_id: %s' % (now, version, job_id))
+                print('%s: submitted job version: %s job_id: %s' % (now, tag, job_id))
             else:
                 print('%s: job not submitted successfully: %s' % (now, result))
                 raise Exception('job not submitted successfully: %s' % result)
