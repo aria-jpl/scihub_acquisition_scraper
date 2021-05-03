@@ -22,6 +22,7 @@ import scrape_acquisition_opensearch
 from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
+import base64
 
 
 # disable warnings for SSL verification
@@ -51,8 +52,8 @@ logger.addFilter(LogFilter())
 
 
 # global constants
-url = "https://scihub.copernicus.eu/apihub/search?"
-download_url = "https://scihub.copernicus.eu/apihub/odata/v1/Products('{}')/$value"
+url = "https://apihub.copernicus.eu/apihub/search?"
+download_url = "https://apihub.copernicus.eu//apihub/odata/v1/Products('{}')/$value"
 dtreg = re.compile(r'S1\w_.+?_(\d{4})(\d{2})(\d{2})T.*')
 QUERY_TEMPLATE = 'IW AND producttype:SLC AND platformname:Sentinel-1 AND ' + \
                  'ingestiondate:[{0} TO {1}]'
@@ -404,10 +405,13 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
     ids_by_track = {}
     prods_missing = []
     prods_found = []
+    creds = '{}:{}'.format(user, password)
+    creds_en = base64.b64encode(creds.encode('ascii'))
     while loop:
         query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
         logger.info("query: %s" % json.dumps(query_params, indent=2))
-        response = session.get(url, params=query_params, verify=False)
+        session.headers.update({'Authorization': 'Basic {}'.format(creds_en)})
+        response = session.get(url, params=query_params)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
             logger.error("Error: %s\n%s" % (response.status_code,response.text))
