@@ -2,7 +2,7 @@
   "command": "/home/ops/verdi/ops/scihub_acquisition_scraper/acquisition_ingest/scrape_apihub_opensearch.py",
   "imported_worker_files": {
     "/export/home/hysdsops/.netrc": "/home/ops/.netrc",
-    "$HOME/verdi/etc/settings.yaml": "/home/ops/verdi/etc"
+    "/export/home/hysdsops/verdi/etc/settings.yaml": "/home/ops/verdi/etc/settings.yaml"
   },
   "required-queues": [
     "factotum-job_worker-small"
