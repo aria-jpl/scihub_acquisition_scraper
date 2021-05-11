@@ -23,6 +23,8 @@ from hysds.celery import app
 from hysds.dataset_ingest import ingest
 from osaka.main import get
 import base64
+import yaml
+from pathlib import Path
 
 
 # disable warnings for SSL verification
@@ -34,6 +36,8 @@ requests.packages.urllib3.disable_warnings(InsecurePlatformWarning)
 # expire_after = timedelta(hours=1)
 # requests_cache.install_cache('check_apihub', expire_after=expire_after)
 
+ESA_USER = ""
+ESA_SECRET = ""
 
 # set logger
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
@@ -67,6 +71,17 @@ AOI_BASED_QUERY_TEMPLATE = VALIDATE_QUERY_TEMPLATE
 # regexes
 PLATFORM_RE = re.compile(r'S1(.+?)_')
 
+def read_creds():
+    abs_file_path = os.path.join(Path.home(), "verdi/etc/settings.yaml")
+    print(abs_file_path)
+    with open(abs_file_path, 'r') as stream:
+        try:
+            creds = yaml.safe_load(stream)
+            ESA_USER = creds["ESA_USER"]
+            ESA_SECRET = creds["ESA_SECRET"]
+            return ESA_USER, ESA_SECRET
+        except yaml.YAMLError as exc:
+            print(exc)
 
 def get_timestamp_for_filename(time):
     time = time.replace("-", "")
@@ -405,12 +420,12 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
     ids_by_track = {}
     prods_missing = []
     prods_found = []
-    creds = '{}:{}'.format(user, password)
+    creds = '{}:{}'.format(ESA_USER, ESA_SECRET)
     creds_en = base64.b64encode(creds.encode('ascii'))
     while loop:
         query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
         logger.info("query: %s" % json.dumps(query_params, indent=2))
-        session.headers.update({'Authorization': 'Basic {}'.format(creds_en)})
+        session.headers.update({'Authorization': 'Basic {}'.format(creds_en.decode('utf-8'))})
         response = session.get(url, params=query_params)
         logger.info("query_url: %s" % response.url)
         if response.status_code != 200:
@@ -542,6 +557,7 @@ if __name__ == "__main__":
     parser.add_argument("--report", help="create a report", default=False, action='store_true', required=False)
     args = parser.parse_args()
     try:
+        ESA_USER, ESA_SECRET = read_creds()
         ds_es_url = app.conf["GRQ_ES_URL"] + "/grq_{}_acquisition-s1-iw_slc/acquisition-S1-IW_SLC".format(
             args.dataset_version)
         scrape(ds_es_url, args.datasets_cfg, args.starttime, args.endtime,
