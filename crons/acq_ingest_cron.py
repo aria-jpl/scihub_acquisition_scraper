@@ -67,14 +67,14 @@ def get_job_params(job_type, job_name, starttime, endtime):
         }
     ]
 
-    if "daily" in job_name:
-        add_params = [
-            {
-                "name": "report_flag",
-                "from": "value",
-                "value": "--report"
-            }
-        ]
+#     if "daily" in job_name:
+#         add_params = [
+#             {
+#                 "name": "report_flag",
+#                 "from": "value",
+#                 "value": "--report"
+#             }
+#         ]
 
         params = params + add_params
     return rule, params
