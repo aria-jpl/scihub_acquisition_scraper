@@ -227,11 +227,11 @@ def massage_result(res):
 
     if res['platform'] == "Sentinel-1A":
        if res['track_number'] != (res['orbitNumber']-73)%175+1:
-           logger.info('', extra = {"params": "message=Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')})
+           logger.info('', extra = {"params": "message=Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', ''))})
            #logger.info("WARNING: Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
     if res['platform'] == "Sentinel-1B":
        if res['track_number'] != (res['orbitNumber']-27)%175+1:
-           logger.info('', extra = {"params": "message=Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')})
+           logger.info('', extra = {"params": "message=Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', ''))})
            #logger.info("WARNING: Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
 
 def get_dataset_json(met, version):
