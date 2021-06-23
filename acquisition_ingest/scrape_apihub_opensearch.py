@@ -56,8 +56,8 @@ ESA_SECRET = ""
 
 # Set up SDSWatch Logger for fulldict
 host = "factotum"
-source_type = "acq_scraper"
-source_id = "acq_scraper"
+source_type = "acquisition_ingest-scihub:hysdv4"
+source_id = "pge"
 
 log_format = ("\'%(asctime)s.%(msecs)03d\',"
                       "\'" + host + "\',"
@@ -128,11 +128,11 @@ def get_accurate_times(filename_str, starttime_str, endtime_str):
                                          m.group("e_minute"), m.group("e_seconds"))
 
     if metadata_st != file_st:
-        logger.info('', extra = {"params":"message=Start Timestamps Mismatch detected \n For {} \n Start time in File Name: {} \n Start time in meta data: {} \n".format(filename_str, file_st, metadata_st)})
+        logger.info('', extra = {"params":"{}.message=Start Timestamps Mismatch detected \n For {} \n Start time in File Name: {} \n Start time in meta data: {} \n".format(source_type, filename_str, file_st, metadata_st)})
         #logger.info("Start Timestamps Mismatch detected \n For {} \n Start time in File Name: {} \n Start time in meta"
         #            "data: {} \n".format(filename_str, file_st, metadata_st))
     if metadata_et != file_et:
-        logger.info('', extra = {"params":"message=End Timestamps Mismatch detected \n For {} \n End time in File Name: {} \n End time in meta data: {} \n".format(filename_str, file_et, metadata_et)})
+        logger.info('', extra = {"params":"{}.message=End Timestamps Mismatch detected \n For {} \n End time in File Name: {} \n End time in meta data: {} \n".format(source_type, filename_str, file_et, metadata_et)})
         #logger.info("End Timestamps Mismatch detected \n For {} \n End time in File Name: {} \n End time in meta"
         #            "data: {} \n".format(filename_str, file_et, metadata_et))
 
@@ -162,7 +162,7 @@ def list_status(starttime, endtime, prods_count, prods_missing, ids_by_track, ds
                                                                         ds_es_url,
                                                                         prods_count)
     #logger.info(msg)
-    logger.info('', extra = {"params": "message={}".format(msg)})
+    logger.info('', extra = {"params": "{}.message={}".format(source_type,msg)})
 
 def massage_result(res):
     """Massage result JSON into HySDS met json."""
@@ -217,6 +217,8 @@ def massage_result(res):
     res['location'] = geojson.Feature(geometry=g, properties={}).geometry
     res['bbox'] = geojson.Feature(geometry=g.envelope, properties={}).geometry.coordinates[0]
 
+    logger.info('', extra = {"params": "{}.trackNumber={}".format(source_type,track_number)})
+    
     # set platform
     match = PLATFORM_RE.search(res['title'])
     if not match:
@@ -227,11 +229,11 @@ def massage_result(res):
 
     if res['platform'] == "Sentinel-1A":
        if res['track_number'] != (res['orbitNumber']-73)%175+1:
-           logger.info('', extra = {"params": "message=Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', ''))})
+           logger.info('', extra = {"params": "{}.message=Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(source_type, res.get('orbitNumber', ''), res.get('track_number', ''))})
            #logger.info("WARNING: Failed to verify S1A relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
     if res['platform'] == "Sentinel-1B":
        if res['track_number'] != (res['orbitNumber']-27)%175+1:
-           logger.info('', extra = {"params": "message=Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', ''))})
+           logger.info('', extra = {"params": "{}.message=Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(source_type, res.get('orbitNumber', ''), res.get('track_number', ''))})
            #logger.info("WARNING: Failed to verify S1B relative orbit number and track number. Orbit:{}, Track: {}".format(res.get('orbitNumber', ''), res.get('track_number', '')))
 
 def get_dataset_json(met, version):
@@ -345,11 +347,11 @@ def get_existing_acqs(start_time, end_time, location=False):
     r = requests.post(es_url, data=json.dumps(query), headers=headers, verify=False)
 
     if r.status_code == 404:
-        logger.info('', extra = {"params": "error={} index does not exist, creating index".format(index)})
+        logger.info('', extra = {"params": "{}.error={} index does not exist, creating index".format(source_type,index)})
         #logger.error("%s index does not exist, creating index" % index)
         create_acq_index_url = "%s/%s" % (rest_url, index)
         requests.put(create_acq_index_url)
-        logger.info('', extra = {"params": "message=created index: {}".format(index)})
+        logger.info('', extra = {"params": "{}.message=created index: {}".format(source_type,index)})
         #logger.info("created index: %s" % index)
         return set()
 
@@ -452,14 +454,14 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
     while loop:
         query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
         #logger.info("query: %s" % json.dumps(query_params, indent=2))
-        logger.info('', extra = {"params": "message=query {}".format(json.dumps(query_params))})
+        logger.info('', extra = {"params": "{}.message=query {}".format(json.dumps(source_type,query_params))})
         session.headers.update({'Authorization': 'Basic {}'.format(creds_en.decode('utf-8'))})
         response = session.get(url, params=query_params)
         #logger.info("query_url: %s" % response.url)
-        logger.info('', extra = {"params": "message=query_url {}".format(response.url)})                       
+        logger.info('', extra = {"params": "{}.message=query_url {}".format(source_type,response.url)})                       
         if response.status_code != 200:
             #logger.error("Error: %s\n%s" % (response.status_code,response.text))
-            logger.info('', extra = {"params": "error=Error {}".format(response.text)})                        
+            logger.info('', extra = {"params": "{}.error=Error {}".format(source_type,response.text)})                        
         response.raise_for_status()
         results = response.json()
         if total_results_expected is None:
@@ -473,11 +475,11 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
         offset += count
         loop = True if count > 0 else False
         #logger.info("Found: {0} results".format(count))
-        logger.info('', extra = {"params": "message=Found {} results".format(count)})                            
+        logger.info('', extra = {"params": "{}.message=Found {} results".format(source_type,count)})                            
         for met in entries:
             try: massage_result(met) 
             except Exception as e:
-                logger.info('', extra = {"params": "error=Failed to massage result: {}".format(json.dumps(met))})                   
+                logger.info('', extra = {"params": "{}.error=Failed to massage result: {}".format(source_type,json.dumps(met))})                   
                 #logger.error("Failed to massage result: %s" % json.dumps(met, indent=2, sort_keys=True))
                 #logger.error("Extracted entries: %s" % json.dumps(entries, indent=2, sort_keys=True))
                 raise
@@ -513,14 +515,14 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
             info = prods_all[acq_id]
             if scrape_acquisition_opensearch.ingest_acq_dataset(info['ds'], info['met'], ds_cfg):
                 #logger.info("Created and ingested %s\n" % acq_id)
-                logger.info('', extra = {"params": "ingest={}".format(acq_id)})
+                logger.info('', extra = {"params": "{}.ingest={}".format(source_type,acq_id)})
             else:
                 slc_id = info['met']['data_product_name']
                 #logger.info("Adding {} to still missing list".format(slc_id))
-                logger.info('', extra = {"params": "message=Adding {} to still missing list".format(slc_id)})                    
+                logger.info('', extra = {"params": "{}.message=Adding {} to still missing list".format(source_type,slc_id)})                    
                 still_missing.append(slc_id)
                 #logger.info("Failed to create and ingest %s\n" % acq_id)
-                logger.info('', extra = {"params": "message=Failed to create and ingest {}".format(acq_id)})                    
+                logger.info('', extra = {"params": "{}.message=Failed to create and ingest {}".format(source_type,acq_id)})                    
 
     # just create missing datasets
     if not ingest_missing and create_only:
@@ -528,7 +530,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
             info = prods_all[acq_id]
             id, ds_dir = create_acq_dataset(info['ds'], info['met'], browse=browse)
             #logger.info("Created %s\n" % acq_id)
-            logger.info('', extra = {"params": "message=Created {}".format(acq_id)})                        
+            logger.info('', extra = {"params": "{}.message=Created {}".format(source_type,acq_id)})                        
 
     if report:
         if ctx.get("aoi_name", None) is not None:
