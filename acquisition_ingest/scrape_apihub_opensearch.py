@@ -56,7 +56,7 @@ ESA_SECRET = ""
 
 # Set up SDSWatch Logger for fulldict
 host = "factotum"
-source_type = "acquisition_ingest-scihub:hysdv4"
+source_type = "acquisition_ingest-scihub_hysdv4"
 source_id = "pge"
 
 log_format = ("\'%(asctime)s.%(msecs)03d\',"
@@ -454,7 +454,7 @@ def scrape(ds_es_url, ds_cfg, starttime, endtime, polygon=False, user=None, pass
     while loop:
         query_params = {"q": query, "rows": 100, "format": "json", "start": offset }
         #logger.info("query: %s" % json.dumps(query_params, indent=2))
-        logger.info('', extra = {"params": "{}.message=query {}".format(json.dumps(source_type,query_params))})
+        logger.info('', extra = {"params": "{}.message=query {}".format(source_type,json.dumps(query_params))})
         session.headers.update({'Authorization': 'Basic {}'.format(creds_en.decode('utf-8'))})
         response = session.get(url, params=query_params)
         #logger.info("query_url: %s" % response.url)
