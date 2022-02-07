@@ -110,8 +110,10 @@ def extract_asf_ipf(id):
     ipf = None
     try:
         # query the asf search api to find the download url for the .iso.xml file
-        request_string = 'https://api.daac.asf.alaska.edu/services/search/param?platform=SA,SB&processingLevel=METADATA_SLC' \
-                         '&granule_list=%s&output=json' % id
+        request_string = 'https://api.daac.asf.alaska.edu/services/search/param?granule_list=%s&output=json' % id
+        # old asf query (updated 2022-02-07)
+        # request_string = 'https://api.daac.asf.alaska.edu/services/search/param?platform=SA,SB&processingLevel=METADATA_SLC' \
+        #                  '&granule_list=%s&output=json' % id
         logger.info("ASF request URL: {}".format(request_string))
         response = requests.get(request_string)
         response.raise_for_status()
